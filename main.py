@@ -117,53 +117,19 @@ class Scheduler(object):
             # Update time
             self.current_timepoint += 1
 
-
-            # for task in self.tasks:
-            #     # 从任务集tasks中选出在当前时刻还活跃的任务
-            #     if task.arrival_timepoint <= self.current_timepoint and self.current_timepoint <= task.deadline and task.remaining_time > 0:
-            #         # 活跃任务不在处理器上执行
-            #         if task not in [processor.current_task for processor in self.processors]:
-            #             # 选出end_timepoint最小的处理器，即最早完成任务空闲的处理器
-            #             processor = min(self.processors)
-            #             # 将当前时间跳到next schedule event timepoint
-            #             if self.current_timepoint < processor.end_timepoint:
-            #                 current_timepoint = processor.end_timepoint
-            #             processor.assign_task(task)
-            #             processor.end_timepoint = task.deadline + task.execution_time // processor.speed
-
-            # # tasks_count是忙碌处理器的数量
-            # tasks_count = len([processor for processor in self.processors if processor['task'] is not None])
-            # if tasks_count == 0:
-            #     break
-            
-            # tasks = sorted(self.processors)
-            # task = tasks[0]['task']
-            # processor = tasks[0]
-            # print(f"Processor {processor['name']}: running task {task.id}")
-            # task.remaining_time -= 1
-            # processor['deadline'] += 1
-            # if task.remaining_time == 0:
-            #     task.remaining_time = task.execution_time
-            #     task.deadline = min(task.period + task.deadline, self.current_timepoint + task.period)
-            #     self.tasks.remove(task)
-            #     processor['task'] = None
-
-            # self.current_timepoint += 1
-
 def main():
     processors = [
-        Processor(id='A', speed=1),
-        # Processor(id='B', speed=1),
+        Processor(id='A', speed=2),
+        Processor(id='B', speed=1),
     ]
 
+    # 将处理器按照speed进行降序排序
     processors.sort(key=lambda processor : processor.speed, reverse=True)
 
     tasks = [
-        # Task(1, arrival_timepoint=0, execution_time=3, deadline=5, period=5),
-        # Task(2, arrival_timepoint=0, execution_time=7, deadline=8, period=8),
-        # Task(3, arrival_timepoint=0, execution_time=5, deadline=12, period=12),
-        Task(1, arrival_timepoint=0, execution_time=25, deadline=50, period=50),
-        Task(2, arrival_timepoint=0, execution_time=30, deadline=75, period=75),
+        Task(1, arrival_timepoint=0, execution_time=3, deadline=5, period=5),
+        Task(2, arrival_timepoint=0, execution_time=7, deadline=8, period=8),
+        Task(3, arrival_timepoint=0, execution_time=5, deadline=12, period=12),
     ]
 
     scheduler = Scheduler(processors)
