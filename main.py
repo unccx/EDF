@@ -58,6 +58,10 @@ class Processor(object):
         # 分配任务时，计算新分配的任务在此处理器上什么时候能够完成
         self.end_timepoint = self.current_task.remaining_time // self.speed + current_timepoint
 
+    def detach_task(self):
+        self.current_task = None
+        self.end_timepoint = None
+
     def execute_task(self, run_time=1):
         '''任务执行
         run_time:
@@ -87,58 +91,76 @@ class Scheduler(object):
         self.lcm_period = math.lcm(self.lcm_period, task.period)
 
     def run(self):
-        while self.current_timepoint < self.lcm_period:
+        '''模拟对任务集进行调度
+        '''
+        while self.current_timepoint <= self.lcm_period+20:
+            print(f"[{self.current_timepoint}]:")
 
             # 更新所有活跃任务（已到达并且未执行完毕）的优先级
             self.task_deadline_heap.clear()
             for task in self.tasks:
+                # 检查是否存在任务已超出期限
+                if self.current_timepoint >= task.abs_deadline:
+                    return False
                 if task.arrival_timepoint <= self.current_timepoint and task.remaining_time > 0:
                     heapq.heappush(self.task_deadline_heap, task)
 
             # 打印self.task_deadline_heap中的任务id
             tasks_priority = [task.id for task in self.task_deadline_heap]
-            print(f"[{self.current_timepoint}]: tasks priority{tasks_priority}")
+            print(f"tasks priority:{tasks_priority}")
 
             # 分配任务到处理器，processors的排序即为任务分配的顺序
             for processor in self.processors:
                 if not processor.current_task:
-                    # 将最高优先级的任务分配到processor上
+                    # 将最高优先级的任务分配到最快的processor上
                     if self.task_deadline_heap:
                         task = heapq.heappop(self.task_deadline_heap)
                         processor.assign_task(task, self.current_timepoint)
 
+            # 打印处理器分配情况
             processor_allocation = [(processor.id, processor.current_task.id) for processor in self.processors if processor.current_task != None]
-            print(f"Processor Allocation{processor_allocation}")
+            print(f"Processor Allocation:{processor_allocation}")
 
             # 执行所有处理器上的任务
             for processor in self.processors:
                 processor.execute_task()
+                processor.detach_task()
 
             # Update time
             self.current_timepoint += 1
+        else:
+            return True
 
 def main():
     processors = [
-        Processor(id='A', speed=2),
+        Processor(id='A', speed=1),
         Processor(id='B', speed=1),
+        Processor(id='C', speed=1),
+        Processor(id='D', speed=1),
     ]
 
     # 将处理器按照speed进行降序排序
     processors.sort(key=lambda processor : processor.speed, reverse=True)
 
     tasks = [
-        Task(1, arrival_timepoint=0, execution_time=3, deadline=5, period=5),
-        Task(2, arrival_timepoint=0, execution_time=7, deadline=8, period=8),
-        Task(3, arrival_timepoint=0, execution_time=5, deadline=12, period=12),
+        Task(1, arrival_timepoint=0, execution_time=6, deadline=10, period=10),
+        Task(2, arrival_timepoint=0, execution_time=6, deadline=10, period=10),
+        Task(3, arrival_timepoint=0, execution_time=6, deadline=10, period=10),
+        Task(4, arrival_timepoint=0, execution_time=6, deadline=10, period=10),
+        Task(5, arrival_timepoint=0, execution_time=6, deadline=10, period=10),
     ]
 
     scheduler = Scheduler(processors)
     for task in tasks:
         scheduler.add_task(task)
 
-    scheduler.run()
-    
     print(f"lcm:{scheduler.lcm_period}")
+
+    feasible = scheduler.run()
+    if feasible:
+        print("The tasks are feasible")
+    else:
+        print("The tasks are not feasible")
 
 if __name__ == "__main__":
     main()
