@@ -31,5 +31,8 @@ def main():
     else:
         print("The tasks are not feasible")
 
+    for processor in processors:
+        print(f"{processor.id}:{processor.history}")
+
 if __name__ == "__main__":
     main()

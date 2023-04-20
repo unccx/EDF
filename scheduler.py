@@ -7,6 +7,7 @@ class Task(object):
     Attributes:
         id:                 # 任务id
         arrival_timepoint:  # 到达时刻
+        instance_id         # 任务实例id，也表示该任务到达次数
         remaining_time:     # 剩余执行工作量时间，也是在最慢处理器上测量得到
         execution_time:     # e 在最慢的速度为1的处理器上测量的执行时间
         deadline:           # d 相对期限
@@ -15,6 +16,7 @@ class Task(object):
     def __init__(self, id, arrival_timepoint, execution_time, deadline, period):
         self.id = id                                # 任务id
         self.arrival_timepoint = arrival_timepoint  # 到达时刻
+        self.instance_id = 0                        # 任务实例id，也表示该任务到达次数
         self.remaining_time = execution_time        # 剩余执行工作量时间，也是在最慢处理器上测量得到
         self.abs_deadline = deadline                # 绝对期限
         self.execution_time = execution_time        # 在最慢的速度为1的处理器上测量的执行时间
@@ -29,6 +31,7 @@ class Task(object):
         '''在任务结束时，使任务按周期更新下一到达时刻'''
         if self.remaining_time == 0:
             self.arrival_timepoint = self.arrival_timepoint + self.period
+            self.instance_id += 1
             self.remaining_time = self.execution_time
             self.abs_deadline += self.period
 
@@ -40,25 +43,27 @@ class Processor(object):
         end_timepoint:  处理器所分配任务的执行结束时刻
                         可以作为对Processors排序的依据，选出最早完成任务的处理器，将当前时间跳到next schedule event timepoint
         current_task:   处理器上当前所分配任务
-        # history:        在此处理器上的运行历史
+        history:        在此处理器上的运行历史
+                        元素为(task.id, task.instance_id)的二元组，若处理器idle则为None
     '''
     def __init__(self, id, speed):
-        self.id = id      # 处理器id
+        self.id = id                # 处理器id
         self.speed = speed          # 性能
         self.end_timepoint = None   # 处理器所分配任务的执行结束时刻
         self.current_task = None    # 处理器上当前所分配任务
-        # self.history = []           # 在此处理器上的运行历史
+        self.history = []           # 在此处理器上的运行历史
 
     def __lt__(self, other):
         return self.end_timepoint < other.end_timepoint
 
     def assign_task(self, task, current_timepoint):
-        # if task.id != self.history[-1]
         self.current_task = task
         # 分配任务时，计算新分配的任务在此处理器上什么时候能够完成
         self.end_timepoint = self.current_task.remaining_time // self.speed + current_timepoint
 
     def detach_task(self):
+        '''去除处理器上所执行的任务
+        '''
         self.current_task = None
         self.end_timepoint = None
 
@@ -72,11 +77,15 @@ class Processor(object):
         '''
         if self.current_task:
             self.current_task.remaining_time -= self.speed * run_time
+            self.history.append((self.current_task.id, self.current_task.instance_id))
             # 任务执行结束
             if self.current_task.remaining_time <= 0:
                 self.current_task.renew()
                 self.current_task = None
                 self.end_timepoint = None
+        else:
+            # 处理器idle
+            self.history.append(None)
 
 class Scheduler(object):
     def __init__(self, processors, current_timepoint = 0):
@@ -87,10 +96,14 @@ class Scheduler(object):
         self.lcm_period = 1                         # 任务集tasks的周期的最小公倍数
 
     def add_task(self, task):
+        '''添加任务，同时计算任务集中任务的期限的最小公倍数
+        '''
         self.tasks.append(task)
         self.lcm_period = math.lcm(self.lcm_period, task.period)
 
     def priority_tick(self):
+        '''更新任务优先级
+        '''
         self.task_deadline_heap.clear()
         for task in self.tasks:
             if task.arrival_timepoint <= self.current_timepoint and task.remaining_time > 0:
@@ -101,6 +114,8 @@ class Scheduler(object):
         print(f"tasks priority:{tasks_priority}")
 
     def allocation_tick(self):
+        '''更新任务分配到处理器上的情况
+        '''
         for processor in self.processors:
             if not processor.current_task:
                 # 将最高优先级的任务分配到最快的processor上
@@ -114,6 +129,7 @@ class Scheduler(object):
 
     def run(self):
         '''模拟对任务集进行调度
+        返回一个布尔值，可实时调度为True，不可实时调度为False
         '''
         while self.current_timepoint <= self.lcm_period:
             print(f"[{self.current_timepoint}]:")
