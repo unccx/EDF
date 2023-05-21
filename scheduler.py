@@ -29,7 +29,7 @@ class Task(object):
 
     def renew(self):
         '''在任务结束时，使任务按周期更新下一到达时刻'''
-        if self.remaining_time == 0:
+        if self.remaining_time <= 0:
             self.arrival_timepoint = self.arrival_timepoint + self.period
             self.instance_id += 1
             self.remaining_time = self.execution_time
