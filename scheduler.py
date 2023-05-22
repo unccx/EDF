@@ -44,7 +44,7 @@ class Processor(object):
                         可以作为对Processors排序的依据，选出最早完成任务的处理器，将当前时间跳到next schedule event timepoint
         current_task:   处理器上当前所分配任务
         history:        在此处理器上的运行历史
-                        元素为(task.id, task.instance_id)的二元组，若处理器idle则为None
+                        元素为(task.id, task.instance_id, current_timepoint, run_time)的四元组
     '''
     def __init__(self, id, speed):
         self.id = id                # 处理器id
@@ -62,12 +62,11 @@ class Processor(object):
         self.end_timepoint = self.current_task.remaining_time // self.speed + current_timepoint
 
     def detach_task(self):
-        '''去除处理器上所执行的任务
-        '''
+        '''去除处理器上所执行的任务'''
         self.current_task = None
         self.end_timepoint = None
 
-    def execute_task(self, run_time=1):
+    def execute_task(self, current_timepoint, run_time=1):
         '''任务执行
         run_time:
             值得注意的是，若run_time>1，在执行任务的这run_time个单位时间内，任务结束后也不会继续给处理器分配任务
@@ -77,33 +76,28 @@ class Processor(object):
         '''
         if self.current_task:
             self.current_task.remaining_time -= self.speed * run_time
-            self.history.append((self.current_task.id, self.current_task.instance_id))
+            self.history.append((self.current_task.id, self.current_task.instance_id, current_timepoint, run_time))
             # 任务执行结束
             if self.current_task.remaining_time <= 0:
                 self.current_task.renew()
                 self.current_task = None
                 self.end_timepoint = None
-        else:
-            # 处理器idle
-            self.history.append(None)
 
 class Scheduler(object):
-    def __init__(self, processors, current_timepoint = 0):
+    def __init__(self, processors, current_timepoint=0):
         self.tasks = []
-        self.processors = processors
+        self.processors = processors                # 处理器list
         self.current_timepoint = current_timepoint
         self.task_deadline_heap = []                # 用优先队列表示任务集tasks的优先级
         self.lcm_period = 1                         # 任务集tasks的周期的最小公倍数
 
     def add_task(self, task):
-        '''添加任务，同时计算任务集中任务的期限的最小公倍数
-        '''
+        '''添加任务，同时计算任务集中任务的期限的最小公倍数'''
         self.tasks.append(task)
         self.lcm_period = math.lcm(self.lcm_period, task.period)
 
     def priority_tick(self):
-        '''更新任务优先级
-        '''
+        '''更新任务优先级'''
         self.task_deadline_heap.clear()
         for task in self.tasks:
             if task.arrival_timepoint <= self.current_timepoint and task.remaining_time > 0:
@@ -114,8 +108,7 @@ class Scheduler(object):
         print(f"tasks priority:{tasks_priority}")
 
     def allocation_tick(self):
-        '''更新任务分配到处理器上的情况
-        '''
+        '''更新任务分配到处理器上的情况'''
         for processor in self.processors:
             if not processor.current_task:
                 # 将最高优先级的任务分配到最快的processor上
@@ -124,7 +117,7 @@ class Scheduler(object):
                     processor.assign_task(task, self.current_timepoint)
         
         # 打印处理器分配情况
-        processor_allocation = [(processor.id, processor.current_task.id) for processor in self.processors if processor.current_task != None]
+        processor_allocation = [(processor.id, processor.current_task.id) for processor in self.processors if processor.current_task]
         print(f"Processor Allocation:{processor_allocation}")
 
     def run(self):
@@ -137,7 +130,7 @@ class Scheduler(object):
             # 检查是否存在任务已超出期限
             for task in self.tasks:
                 if self.current_timepoint >= task.abs_deadline:
-                    return False
+                    return False # 任务集不可调度
 
             # 更新所有活跃任务（已到达并且未执行完毕）的优先级
             self.priority_tick()
@@ -145,12 +138,16 @@ class Scheduler(object):
             # 分配任务到处理器，processors的排序即为任务分配的顺序
             self.allocation_tick()
 
+            # 找出触发下一调度事件的时间点，并计算出距离现在还有多少时间
+            next_schedule_event_timepoint = min([processor.end_timepoint for processor in self.processors if processor.end_timepoint])
+            run_time = next_schedule_event_timepoint - self.current_timepoint
+
             # 执行所有处理器上的任务
             for processor in self.processors:
-                processor.execute_task()
+                processor.execute_task(self.current_timepoint, run_time)
                 processor.detach_task()
 
             # Update time
-            self.current_timepoint += 1
+            self.current_timepoint += run_time
         else:
-            return True
+            return True # 任务集可调度
