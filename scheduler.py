@@ -92,6 +92,8 @@ class Scheduler(object):
         self.processors = processors                # 处理器list
         self.current_timepoint = current_timepoint
         self.task_deadline_heap = []                # 用优先队列表示任务集tasks的优先级
+                                                    # 因为在分配任务时会从优先队列中取出优先级最高的任务，所以不能代表活跃任务
+                                                    # task_deadline_heap中的任务 + 处理器上运行的任务 = 活跃任务
         self.lcm_period = 1                         # 任务集tasks的周期的最小公倍数
 
     def add_task(self, task):
@@ -147,13 +149,17 @@ class Scheduler(object):
             self.allocation_tick()
 
             # 找出触发下一调度事件的时间点，并计算出距离现在还有多少时间
-            next_schedule_event_timepoint = min([processor.end_timepoint 
-                                                 for processor in self.processors if processor.end_timepoint])
+            # Schedule events 包括两种情况，当 (a) 正在运行的作业完成时和 (b) 新作业到达时
+            running_task_end = [processor.end_timepoint 
+                                for processor in self.processors if processor.end_timepoint]
+            new_arrival = [task.arrival_timepoint for task in self.tasks 
+                           if task.arrival_timepoint > self.current_timepoint]
+            next_schedule_event_timepoint = min(running_task_end + new_arrival)
             run_time = next_schedule_event_timepoint - self.current_timepoint
 
             # 执行所有处理器上的任务
             for processor in self.processors:
-                processor.execute_task()
+                processor.execute_task(self.current_timepoint, run_time)
 
             # Update time
             self.current_timepoint += run_time
