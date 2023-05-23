@@ -44,7 +44,7 @@ class Processor(object):
                         可以作为对Processors排序的依据，选出最早完成任务的处理器，将当前时间跳到next schedule event timepoint
         current_task:   处理器上当前所分配任务
         history:        在此处理器上的运行历史
-                        元素为(task.id, task.instance_id, current_timepoint, run_time)的四元组
+                        元素为(task.id, task.instance_id, current_timepoint, running_time)的四元组
     '''
     def __init__(self, id, speed):
         self.id = id                # 处理器id
@@ -59,24 +59,24 @@ class Processor(object):
     def assign_task(self, task, current_timepoint):
         self.current_task = task
         # 分配任务时，计算新分配的任务在此处理器上什么时候能够完成
-        self.end_timepoint = self.current_task.remaining_time // self.speed + current_timepoint
+        self.end_timepoint = math.ceil(self.current_task.remaining_time / self.speed) + current_timepoint
 
     def detach_task(self):
         '''去除处理器上所执行的任务'''
         self.current_task = None
         self.end_timepoint = None
 
-    def execute_task(self, current_timepoint, run_time=1):
+    def execute_task(self, current_timepoint, running_time=1):
         '''任务执行
-        run_time:
-            值得注意的是，若run_time>1，在执行任务的这run_time个单位时间内，任务结束后也不会继续给处理器分配任务
-            建议在调用execute_tasks时，run_time设置为current_timepoint与next schedule event timepoint的间隔
+        running_time:
+            值得注意的是，若running_time>1，在执行任务的这running_time个单位时间内，任务结束后也不会继续给处理器分配任务
+            建议在调用execute_tasks时，running_time设置为current_timepoint与next schedule event timepoint的间隔
             用于快速跳至next schedule event timepoint
-            或者run_time=1，Scheduler.run()中的current_timepoint每次+1，不去节省模拟没有schedule event的时间
+            或者running_time=1，Scheduler.run()中的current_timepoint每次+1，不去节省模拟没有schedule event的时间
         '''
         if self.current_task:
-            self.current_task.remaining_time -= self.speed * run_time
-            self.history.append((self.current_task.id, self.current_task.instance_id, current_timepoint, run_time))
+            self.current_task.remaining_time -= self.speed * running_time
+            self.history.append((self.current_task.id, self.current_task.instance_id, current_timepoint, running_time))
             # 任务执行结束
             if self.current_task.remaining_time <= 0:
                 self.current_task.renew()
@@ -155,13 +155,13 @@ class Scheduler(object):
             new_arrival = [task.arrival_timepoint for task in self.tasks 
                            if task.arrival_timepoint > self.current_timepoint]
             next_schedule_event_timepoint = min(running_task_end + new_arrival)
-            run_time = next_schedule_event_timepoint - self.current_timepoint
+            running_time = next_schedule_event_timepoint - self.current_timepoint
 
             # 执行所有处理器上的任务
             for processor in self.processors:
-                processor.execute_task(self.current_timepoint, run_time)
+                processor.execute_task(self.current_timepoint, running_time)
 
             # Update time
-            self.current_timepoint += run_time
+            self.current_timepoint += running_time
         else:
             return True # 任务集可调度
