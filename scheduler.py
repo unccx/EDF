@@ -30,7 +30,7 @@ class Task(object):
     def renew(self):
         '''在任务结束时，使任务按周期更新下一到达时刻'''
         if self.remaining_time <= 0:
-            self.arrival_timepoint = self.arrival_timepoint + self.period
+            self.arrival_timepoint += self.period
             self.instance_id += 1
             self.remaining_time = self.execution_time
             self.abs_deadline += self.period
@@ -62,8 +62,7 @@ class Processor(object):
         self.end_timepoint = self.current_task.remaining_time // self.speed + current_timepoint
 
     def detach_task(self):
-        '''去除处理器上所执行的任务
-        '''
+        '''去除处理器上所执行的任务'''
         self.current_task = None
         self.end_timepoint = None
 
@@ -89,6 +88,9 @@ class Processor(object):
 
 class Scheduler(object):
     def __init__(self, processors, current_timepoint = 0):
+        # 将处理器按照speed进行降序排序
+        processors.sort(key=lambda processor : processor.speed, reverse=True)
+
         self.tasks = []
         self.processors = processors
         self.current_timepoint = current_timepoint
@@ -96,14 +98,12 @@ class Scheduler(object):
         self.lcm_period = 1                         # 任务集tasks的周期的最小公倍数
 
     def add_task(self, task):
-        '''添加任务，同时计算任务集中任务的期限的最小公倍数
-        '''
+        '''添加任务，同时计算任务集中任务的期限的最小公倍数'''
         self.tasks.append(task)
         self.lcm_period = math.lcm(self.lcm_period, task.period)
 
     def priority_tick(self):
-        '''更新任务优先级
-        '''
+        '''更新任务优先级'''
         self.task_deadline_heap.clear()
         for task in self.tasks:
             if task.arrival_timepoint <= self.current_timepoint and task.remaining_time > 0:
@@ -114,17 +114,21 @@ class Scheduler(object):
         print(f"tasks priority:{tasks_priority}")
 
     def allocation_tick(self):
-        '''更新任务分配到处理器上的情况
-        '''
+        '''更新任务分配到处理器上的情况'''
+        # 清除上一tick的处理器分配情况
         for processor in self.processors:
-            if not processor.current_task:
-                # 将最高优先级的任务分配到最快的processor上
-                if self.task_deadline_heap:
-                    task = heapq.heappop(self.task_deadline_heap)
-                    processor.assign_task(task, self.current_timepoint)
+            processor.detach_task()
+
+        # 这一tick重新将最高优先级的任务分配到最快的processor上，处理器list在init()中按照处理器速度进行过降序排序
+        for processor in self.processors:
+            # 处理器空闲并且任务队列非空
+            if not processor.current_task and self.task_deadline_heap:
+                task = heapq.heappop(self.task_deadline_heap)
+                processor.assign_task(task, self.current_timepoint)
         
         # 打印处理器分配情况
-        processor_allocation = [(processor.id, processor.current_task.id) for processor in self.processors if processor.current_task != None]
+        processor_allocation = [(processor.id, processor.current_task.id) 
+                                for processor in self.processors if processor.current_task != None]
         print(f"Processor Allocation:{processor_allocation}")
 
     def run(self):
@@ -139,7 +143,7 @@ class Scheduler(object):
                 if self.current_timepoint >= task.abs_deadline:
                     return False
 
-            # 更新所有活跃任务（已到达并且未执行完毕）的优先级
+            # 更新所有活跃任务（已到达并且未执行完毕的任务）的优先级
             self.priority_tick()
 
             # 分配任务到处理器，processors的排序即为任务分配的顺序
@@ -148,7 +152,6 @@ class Scheduler(object):
             # 执行所有处理器上的任务
             for processor in self.processors:
                 processor.execute_task()
-                processor.detach_task()
 
             # Update time
             self.current_timepoint += 1

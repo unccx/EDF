@@ -8,8 +8,8 @@ def main():
         sc.Processor(id='D', speed=1),
     ]
 
-    # 将处理器按照speed进行降序排序
-    processors.sort(key=lambda processor : processor.speed, reverse=True)
+    # # 将处理器按照speed进行降序排序
+    # processors.sort(key=lambda processor : processor.speed, reverse=True)
 
     tasks = [
         sc.Task(1, arrival_timepoint=0, execution_time=6, deadline=10, period=10),
