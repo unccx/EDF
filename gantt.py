@@ -1,33 +1,25 @@
-# Importing the matplotlib.pyplot
 import matplotlib.pyplot as plt
 
-# Declaring a figure "gnt"
-fig, gnt = plt.subplots()
+def plot_gantt(scheduler):
+    # Declaring a figure
+    fig, ax = plt.subplots()
 
-# # Setting Y-axis limits
-# gnt.set_ylim(0, 50)
+    # 设置坐标轴
+    ax.set_ylim(0, len(scheduler.processors) + 15)
+    ax.set_xlabel('Time')
+    ax.set_yticks([i*10 + 2 for i in range(len(scheduler.processors))])
+    ax.set_yticklabels([processor.id for processor in scheduler.processors])
 
-# # Setting X-axis limits
-# gnt.set_xlim(0, 160)
+    # Setting graph attribute
+    ax.grid(True)
 
-# Setting labels for x-axis and y-axis
-gnt.set_xlabel('time since start')
-gnt.set_ylabel('Processor')
+    for i, processor in enumerate(scheduler.processors):
+        for record in processor.history:
+            task_id = record[0]
+            task_instance_id = record[1]
+            color = 'C' + str(task_id % 10)
+            ax.broken_barh([record[2:4]], (i*10, 4), facecolors=color)
+            ax.annotate(f"t{task_id},{task_instance_id}", 
+                        xy=(record[2]+record[3]/2, i*10+2), ha='center', va='center')
 
-# Setting ticks on y-axis
-gnt.set_yticks([15, 25, 35])
-# Labelling tickes of y-axis
-gnt.set_yticklabels(['1', '2', '3'])
-
-# Setting graph attribute
-gnt.grid(True)
-
-# Declaring a bar in schedule
-gnt.broken_barh([(40, 50)], (30, 9), facecolors =('tab:orange'))
-
-# Declaring multiple bars in at same level and same width
-gnt.broken_barh([(110, 10), (150, 10)], (10, 9), facecolors ='tab:blue')
-
-gnt.broken_barh([(10, 50), (100, 20), (130, 10)], (20, 9), facecolors =('tab:red'))
-
-plt.savefig("gantt1.png")
+    plt.savefig("gantt1.png")

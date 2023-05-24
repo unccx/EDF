@@ -79,6 +79,9 @@ class Processor(object):
             self.history.append((self.current_task.id, self.current_task.instance_id, current_timepoint, running_time))
             # 任务执行结束
             if self.current_task.remaining_time <= 0:
+                # 打印任务结束时刻
+                print(f"task {self.current_task.id} is completed at timepoint {current_timepoint + running_time}")
+
                 self.current_task.renew()
                 self.current_task = None
                 self.end_timepoint = None
@@ -107,6 +110,10 @@ class Scheduler(object):
         for task in self.tasks:
             if task.arrival_timepoint <= self.current_timepoint and task.remaining_time > 0:
                 heapq.heappush(self.task_deadline_heap, task)
+
+                # 打印任务到达时刻
+                if task.arrival_timepoint == self.current_timepoint:
+                    print(f"task {task.id} arrives at time {task.arrival_timepoint}")
         
         # 打印self.task_deadline_heap中的任务id
         tasks_priority = [task.id for task in self.task_deadline_heap]
@@ -140,6 +147,7 @@ class Scheduler(object):
             # 检查是否存在任务已超出期限
             for task in self.tasks:
                 if self.current_timepoint >= task.abs_deadline:
+                    print(f"task {task.id} exceeded the deadline")
                     return False # 任务集不可调度
 
             # 更新所有活跃任务（已到达并且未执行完毕的任务）的优先级
