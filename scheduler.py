@@ -9,6 +9,7 @@ class Task(object):
         arrival_timepoint:  # 到达时刻
         instance_id         # 任务实例id，也表示该任务到达次数
         remaining_time:     # 剩余执行工作量时间，也是在最慢处理器上测量得到
+        abs_deadline        # 绝对期限
         execution_time:     # e 在最慢的速度为1的处理器上测量的执行时间
         deadline:           # d 相对期限
         period:             # T 周期
@@ -59,6 +60,11 @@ class Processor(object):
     def assign_task(self, task, current_timepoint):
         self.current_task = task
         # 分配任务时，计算新分配的任务在此处理器上什么时候能够完成
+        # 这里使用向上取整除法math.ceil()，是因为如果这里向下取整可能会使
+        # ==>   remaining_time // speed == 0
+        # ==>   end_timepoint == current_timepoint
+        # ==>   next_schedule_event_timepoint = current_timepoint
+        # ==>   running_time == 0，出现死循环
         self.end_timepoint = math.ceil(self.current_task.remaining_time / self.speed) + current_timepoint
 
     def detach_task(self):
@@ -116,6 +122,7 @@ class Scheduler(object):
                     print(f"task {task.id} arrives at time {task.arrival_timepoint}")
         
         # 打印self.task_deadline_heap中的任务id
+        # 使用[task.abs_deadline for task in self.task_deadline_heap]可打印出绝对deadline
         tasks_priority = [task.id for task in self.task_deadline_heap]
         print(f"tasks priority:{tasks_priority}")
 
