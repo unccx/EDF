@@ -1,6 +1,9 @@
 import scheduler as sc
 import gantt
 import data_generater as data
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 def main():
     dg = data.DataGenerator()
@@ -17,8 +20,8 @@ def main():
     #     # sc.Processor(id='D', speed=1),
     # ]
 
-    # # # 将处理器按照speed进行降序排序
-    # # processors.sort(key=lambda processor : processor.speed, reverse=True)
+    # # 将处理器按照speed进行降序排序
+    # processors.sort(key=lambda processor : processor.speed, reverse=True)
 
     # tasks = [
     #     sc.Task(1, arrival_timepoint=0, execution_time=25, deadline=50, period=50),
@@ -32,18 +35,19 @@ def main():
     # for task in tasks:
     #     scheduler.add_task(task)
 
-    # print(f"lcm:{scheduler.lcm_period}")
+    # logging.info(f"lcm:{scheduler.lcm_period}")
 
     # feasible = scheduler.run()
     # if feasible:
-    #     print("The tasks are feasible")
+    #     logging.info("The tasks are feasible")
     # else:
-    #     print("The tasks are not feasible")
+    #     logging.info("The tasks are not feasible")
 
     # for processor in processors:
-    #     print(f"{processor.id}:{processor.history}")
+    #     logging.debug(f"{processor.id}:{processor.history}")
 
     # gantt.plot_gantt(scheduler)
+
 
 if __name__ == "__main__":
     main()
