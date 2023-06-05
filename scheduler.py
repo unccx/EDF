@@ -150,7 +150,7 @@ class Scheduler(object):
         返回一个布尔值，可实时调度为True，不可实时调度为False
         '''
         while self.current_timepoint <= self.lcm_period:
-            logging.debug(f"[{self.current_timepoint}]:")
+            logging.info(f"Simulation progress: [{self.current_timepoint} / {self.lcm_period} = {self.current_timepoint / self.lcm_period * 100 :.2f}%]:")
 
             # 检查是否存在任务已超出期限
             for task in self.tasks:

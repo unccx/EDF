@@ -7,8 +7,8 @@ logging.basicConfig(level=logging.INFO)
 
 def main():
     dg = data.DataGenerator()
-    task_set = dg.generate_task(15)
-    platform = dg.generate_platform(10)
+    task_set = dg.generate_task(5)
+    platform = dg.generate_platform(3)
     dg.generate_hyperedge()
 
     print(dg.hyperedges)

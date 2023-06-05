@@ -1,6 +1,7 @@
 import scheduler as sc
 import numpy as np
 import itertools
+import logging
 
 np.random.seed(42) 
 
@@ -16,11 +17,16 @@ class DataGenerator(object):
             processor = sc.Processor(id=f"P{i}", speed=np.random.randint(1, 10))
             self.processors.append(processor)
         
+        # 打印生成的处理器序列
+        platform_speed = [processor.speed for processor in self.processors]
+        platform_speed.sort()
+        logging.info(f"platform speed: {platform_speed}")
+
         return self.processors
 
     def generate_task(self, number_of_tasks):
         # 生成 number_of_tasks 个二元组
-        binaries = np.random.randint(1, 101, size=(number_of_tasks, 2))
+        binaries = np.random.randint(1, 50, size=(number_of_tasks, 2))
 
         # 重复最后一列加到最后，即三元组中的deadline == period
         triplets = np.hstack((binaries, binaries[:, -1].reshape(-1, 1)))
@@ -30,6 +36,12 @@ class DataGenerator(object):
         # triplets = triplets[mask]
 
         self.tasks = triplets
+
+        # 打印生成的任务
+        logging.info("Generated tasks:")
+        for i, triplet in enumerate(triplets):
+            e, d, T = triplet
+            logging.info(f"({e}, {d}, {T})")
 
         return triplets
 
@@ -51,6 +63,9 @@ class DataGenerator(object):
             e, d, T = self.tasks[task_id, :]
             task = sc.Task(task_id, arrival_timepoint=0, execution_time=e, deadline=d, period=T)
             scheduler.add_task(task)
+
+        # 打印需要判定的待定超边
+        logging.info(f"Determining if schedulable: {task_id_set}")
 
         # 模拟调度过程判断任务集是否可调度
         feasible: bool = scheduler.run()
@@ -76,17 +91,7 @@ class DataGenerator(object):
             self.hyperedges.append(task_id_set)
 
         # task_id_set 在 processors 上不可调度，判断 task_id_set 的子集是否可调度
-        combin = itertools.combinations(task_id_set, task_id_set.len()-1)
+        combin = itertools.combinations(task_id_set, len(task_id_set)-1)
         for i, subset in enumerate(combin):
             print(f"{i}: {subset}")
             self.search_hyperedge(subset)
-
-# dg = DataGenerator()
-# task_set = dg.generate_task(15)
-# platform = dg.generate_platform(10)
-# feasible = dg.judge_feasibility([0, 1, 2, 3, 4])
-
-# if feasible:
-#     print("The tasks are feasible")
-# else:
-#     print("The tasks are not feasible")
