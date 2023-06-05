@@ -1,5 +1,6 @@
 import heapq
 import math
+import logging
 
 class Task(object):
     '''周期任务
@@ -86,7 +87,7 @@ class Processor(object):
             # 任务执行结束
             if self.current_task.remaining_time <= 0:
                 # 打印任务结束时刻
-                print(f"task {self.current_task.id} is completed at timepoint {current_timepoint + running_time}")
+                logging.debug(f"task {self.current_task.id} is completed at timepoint {current_timepoint + running_time}")
 
                 self.current_task.renew()
                 self.current_task = None
@@ -119,12 +120,12 @@ class Scheduler(object):
 
                 # 打印任务到达时刻
                 if task.arrival_timepoint == self.current_timepoint:
-                    print(f"task {task.id} arrives at time {task.arrival_timepoint}")
+                    logging.debug(f"task {task.id} arrives at time {task.arrival_timepoint}")
         
         # 打印self.task_deadline_heap中的任务id
         # 使用[task.abs_deadline for task in self.task_deadline_heap]可打印出绝对deadline
         tasks_priority = [task.id for task in self.task_deadline_heap]
-        print(f"tasks priority:{tasks_priority}")
+        logging.debug(f"tasks priority:{tasks_priority}")
 
     def allocation_tick(self):
         '''更新任务分配到处理器上的情况'''
@@ -142,19 +143,19 @@ class Scheduler(object):
         # 打印处理器分配情况
         processor_allocation = [(processor.id, processor.current_task.id) 
                                 for processor in self.processors if processor.current_task != None]
-        print(f"Processor Allocation:{processor_allocation}")
+        logging.debug(f"Processor Allocation:{processor_allocation}")
 
     def run(self):
         '''模拟对任务集进行调度
         返回一个布尔值，可实时调度为True，不可实时调度为False
         '''
         while self.current_timepoint <= self.lcm_period:
-            print(f"[{self.current_timepoint}]:")
+            logging.debug(f"[{self.current_timepoint}]:")
 
             # 检查是否存在任务已超出期限
             for task in self.tasks:
                 if self.current_timepoint >= task.abs_deadline:
-                    print(f"task {task.id} exceeded the deadline")
+                    logging.debug(f"task {task.id} exceeded the deadline")
                     return False # 任务集不可调度
 
             # 更新所有活跃任务（已到达并且未执行完毕的任务）的优先级

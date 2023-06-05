@@ -1,5 +1,8 @@
 import scheduler as sc
 import gantt
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 def main():
     processors = [
@@ -24,18 +27,18 @@ def main():
     for task in tasks:
         scheduler.add_task(task)
 
-    print(f"lcm:{scheduler.lcm_period}")
+    logging.info(f"lcm:{scheduler.lcm_period}")
 
     feasible = scheduler.run()
     if feasible:
-        print("The tasks are feasible")
+        logging.info("The tasks are feasible")
     else:
-        print("The tasks are not feasible")
+        logging.info("The tasks are not feasible")
 
     for processor in processors:
-        print(f"{processor.id}:{processor.history}")
+        logging.debug(f"{processor.id}:{processor.history}")
 
-    gantt.plot_gantt(scheduler)
+    # gantt.plot_gantt(scheduler)
 
 if __name__ == "__main__":
     main()
