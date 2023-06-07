@@ -5,7 +5,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 # 创建 FileHandler 处理程序
-file_handler = logging.FileHandler('app.log')
+file_handler = logging.FileHandler('app.log', mode="w")
 file_handler.setLevel(logging.INFO)
 
 # 创建 Formatter 格式化器
