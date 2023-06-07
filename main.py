@@ -1,13 +1,11 @@
 import scheduler as sc
 import gantt
 import data_generater as data
-import logging
-
-logging.basicConfig(level=logging.INFO)
+from logger_config import logger
 
 def main():
     dg = data.DataGenerator()
-    task_set = dg.generate_task(5)
+    task_set = dg.generate_task(7)
     platform = dg.generate_platform(3)
     dg.generate_hyperedge()
 
@@ -35,16 +33,16 @@ def main():
     # for task in tasks:
     #     scheduler.add_task(task)
 
-    # logging.info(f"lcm:{scheduler.lcm_period}")
+    # logger.info(f"lcm:{scheduler.lcm_period}")
 
     # feasible = scheduler.run()
     # if feasible:
-    #     logging.info("The tasks are feasible")
+    #     logger.info("The tasks are feasible")
     # else:
-    #     logging.info("The tasks are not feasible")
+    #     logger.info("The tasks are not feasible")
 
     # for processor in processors:
-    #     logging.debug(f"{processor.id}:{processor.history}")
+    #     logger.debug(f"{processor.id}:{processor.history}")
 
     # gantt.plot_gantt(scheduler)
 

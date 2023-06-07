@@ -1,6 +1,6 @@
 import heapq
 import math
-import logging
+from logger_config import logger
 
 class Task(object):
     '''周期任务
@@ -48,12 +48,12 @@ class Processor(object):
         history:        在此处理器上的运行历史
                         元素为(task.id, task.instance_id, current_timepoint, running_time)的四元组
     '''
-    def __init__(self, id, speed):
-        self.id = id                # 处理器id
-        self.speed = speed          # 性能
-        self.end_timepoint = None   # 处理器所分配任务的执行结束时刻
-        self.current_task = None    # 处理器上当前所分配任务
-        self.history = []           # 在此处理器上的运行历史
+    def __init__(self, id, speed, enable_history=True):
+        self.id = id                            # 处理器id
+        self.speed = speed                      # 性能
+        self.end_timepoint = None               # 处理器所分配任务的执行结束时刻
+        self.current_task = None                # 处理器上当前所分配任务
+        self.history = []                       # 在此处理器上的运行历史
 
     def __lt__(self, other):
         return self.end_timepoint < other.end_timepoint
@@ -73,21 +73,27 @@ class Processor(object):
         self.current_task = None
         self.end_timepoint = None
 
-    def execute_task(self, current_timepoint, running_time=1):
+    def execute_task(self, current_timepoint, running_time=1, enable_history=True):
         '''任务执行
         running_time:
             值得注意的是，若running_time>1，在执行任务的这running_time个单位时间内，任务结束后也不会继续给处理器分配任务
             建议在调用execute_tasks时，running_time设置为current_timepoint与next schedule event timepoint的间隔
             用于快速跳至next schedule event timepoint
             或者running_time=1，Scheduler.run()中的current_timepoint每次+1，不去节省模拟没有schedule event的时间
+        enable_history:
+            启用处理器执行历史记录。如果需要gantt图可视化调度过程，需要为True
         '''
         if self.current_task:
             self.current_task.remaining_time -= self.speed * running_time
-            self.history.append((self.current_task.id, self.current_task.instance_id, current_timepoint, running_time))
+
+            if enable_history:
+                # 记录执行历史
+                self.history.append((self.current_task.id, self.current_task.instance_id, current_timepoint, running_time))
+
             # 任务执行结束
             if self.current_task.remaining_time <= 0:
                 # 打印任务结束时刻
-                logging.debug(f"task {self.current_task.id} is completed at timepoint {current_timepoint + running_time}")
+                logger.debug(f"task {self.current_task.id} is completed at timepoint {current_timepoint + running_time}")
 
                 self.current_task.renew()
                 self.current_task = None
@@ -120,12 +126,12 @@ class Scheduler(object):
 
                 # 打印任务到达时刻
                 if task.arrival_timepoint == self.current_timepoint:
-                    logging.debug(f"task {task.id} arrives at time {task.arrival_timepoint}")
+                    logger.debug(f"task {task.id} arrives at time {task.arrival_timepoint}")
         
         # 打印self.task_deadline_heap中的任务id
         # 使用[task.abs_deadline for task in self.task_deadline_heap]可打印出绝对deadline
         tasks_priority = [task.id for task in self.task_deadline_heap]
-        logging.debug(f"tasks priority:{tasks_priority}")
+        logger.debug(f"tasks priority:{tasks_priority}")
 
     def allocation_tick(self):
         '''更新任务分配到处理器上的情况'''
@@ -143,19 +149,25 @@ class Scheduler(object):
         # 打印处理器分配情况
         processor_allocation = [(processor.id, processor.current_task.id) 
                                 for processor in self.processors if processor.current_task != None]
-        logging.debug(f"Processor Allocation:{processor_allocation}")
+        logger.debug(f"Processor Allocation:{processor_allocation}")
 
-    def run(self):
+    def run(self, enable_history=True):
         '''模拟对任务集进行调度
         返回一个布尔值，可实时调度为True，不可实时调度为False
+        enable_history:
+            启用处理器执行历史记录。如果需要gantt图可视化调度过程，需要为True
         '''
         while self.current_timepoint <= self.lcm_period:
-            logging.info(f"Simulation progress: [{self.current_timepoint} / {self.lcm_period} = {self.current_timepoint / self.lcm_period * 100 :.2f}%]:")
+            # logger.info(f"Simulation progress: [{self.current_timepoint} / {self.lcm_period} = {self.current_timepoint / self.lcm_period * 100 :.2f}%]:")
+            print(f"Simulation progress: [{self.current_timepoint} / {self.lcm_period} = {self.current_timepoint / self.lcm_period * 100 :.2f}%]:", end='', flush=True)
+            print("\r", end='', flush=True)
+            # 删除上一行控制台输出
+            # print("\r\033[K", end='', flush=True)
 
             # 检查是否存在任务已超出期限
             for task in self.tasks:
                 if self.current_timepoint >= task.abs_deadline:
-                    logging.debug(f"task {task.id} exceeded the deadline")
+                    logger.debug(f"task {task.id} exceeded the deadline")
                     return False # 任务集不可调度
 
             # 更新所有活跃任务（已到达并且未执行完毕的任务）的优先级
@@ -175,7 +187,7 @@ class Scheduler(object):
 
             # 执行所有处理器上的任务
             for processor in self.processors:
-                processor.execute_task(self.current_timepoint, running_time)
+                processor.execute_task(self.current_timepoint, running_time, enable_history)
 
             # Update time
             self.current_timepoint += running_time
