@@ -1,5 +1,7 @@
 import heapq
 import math
+from logger_config import logger
+from tqdm import tqdm
 
 class Task(object):
     '''周期任务
@@ -47,12 +49,12 @@ class Processor(object):
         history:        在此处理器上的运行历史
                         元素为(task.id, task.instance_id, current_timepoint, running_time)的四元组
     '''
-    def __init__(self, id, speed):
-        self.id = id                # 处理器id
-        self.speed = speed          # 性能
-        self.end_timepoint = None   # 处理器所分配任务的执行结束时刻
-        self.current_task = None    # 处理器上当前所分配任务
-        self.history = []           # 在此处理器上的运行历史
+    def __init__(self, id, speed, enable_history=True):
+        self.id = id                            # 处理器id
+        self.speed = speed                      # 性能
+        self.end_timepoint = None               # 处理器所分配任务的执行结束时刻
+        self.current_task = None                # 处理器上当前所分配任务
+        self.history = []                       # 在此处理器上的运行历史
 
     def __lt__(self, other):
         return self.end_timepoint < other.end_timepoint
@@ -72,21 +74,27 @@ class Processor(object):
         self.current_task = None
         self.end_timepoint = None
 
-    def execute_task(self, current_timepoint, running_time=1):
+    def execute_task(self, current_timepoint, running_time=1, enable_history=True):
         '''任务执行
         running_time:
             值得注意的是，若running_time>1，在执行任务的这running_time个单位时间内，任务结束后也不会继续给处理器分配任务
             建议在调用execute_tasks时，running_time设置为current_timepoint与next schedule event timepoint的间隔
             用于快速跳至next schedule event timepoint
             或者running_time=1，Scheduler.run()中的current_timepoint每次+1，不去节省模拟没有schedule event的时间
+        enable_history:
+            启用处理器执行历史记录。如果需要gantt图可视化调度过程，需要为True
         '''
         if self.current_task:
             self.current_task.remaining_time -= self.speed * running_time
-            self.history.append((self.current_task.id, self.current_task.instance_id, current_timepoint, running_time))
+
+            if enable_history:
+                # 记录执行历史
+                self.history.append((self.current_task.id, self.current_task.instance_id, current_timepoint, running_time))
+
             # 任务执行结束
             if self.current_task.remaining_time <= 0:
                 # 打印任务结束时刻
-                print(f"task {self.current_task.id} is completed at timepoint {current_timepoint + running_time}")
+                logger.debug(f"task {self.current_task.id} is completed at timepoint {current_timepoint + running_time}")
 
                 self.current_task.renew()
                 self.current_task = None
@@ -119,12 +127,12 @@ class Scheduler(object):
 
                 # 打印任务到达时刻
                 if task.arrival_timepoint == self.current_timepoint:
-                    print(f"task {task.id} arrives at time {task.arrival_timepoint}")
+                    logger.debug(f"task {task.id} arrives at time {task.arrival_timepoint}")
         
         # 打印self.task_deadline_heap中的任务id
         # 使用[task.abs_deadline for task in self.task_deadline_heap]可打印出绝对deadline
         tasks_priority = [task.id for task in self.task_deadline_heap]
-        print(f"tasks priority:{tasks_priority}")
+        logger.debug(f"tasks priority:{tasks_priority}")
 
     def allocation_tick(self):
         '''更新任务分配到处理器上的情况'''
@@ -142,41 +150,75 @@ class Scheduler(object):
         # 打印处理器分配情况
         processor_allocation = [(processor.id, processor.current_task.id) 
                                 for processor in self.processors if processor.current_task != None]
-        print(f"Processor Allocation:{processor_allocation}")
+        logger.debug(f"Processor Allocation:{processor_allocation}")
 
-    def run(self):
+    def run(self, enable_history=True):
         '''模拟对任务集进行调度
         返回一个布尔值，可实时调度为True，不可实时调度为False
+        enable_history:
+            启用处理器执行历史记录。如果需要gantt图可视化调度过程，需要为True
         '''
-        while self.current_timepoint <= self.lcm_period:
-            print(f"[{self.current_timepoint}]:")
+        with tqdm(total=self.lcm_period) as pbar:
+            pbar.set_description('Simulation Processing:')
+            while self.current_timepoint <= self.lcm_period:
+                # logger.info(f"Simulation progress: [{self.current_timepoint} / {self.lcm_period} = {self.current_timepoint / self.lcm_period * 100 :.2f}%]:")
+                # print(f"Simulation progress: [{self.current_timepoint} / {self.lcm_period} = {self.current_timepoint / self.lcm_period * 100 :.2f}%]:", end='', flush=True)
+                # print("\r", end='', flush=True)
+                # 删除上一行控制台输出
+                # print("\r\033[K", end='', flush=True)
 
-            # 检查是否存在任务已超出期限
-            for task in self.tasks:
-                if self.current_timepoint >= task.abs_deadline:
-                    print(f"task {task.id} exceeded the deadline")
-                    return False # 任务集不可调度
+                # 检查是否存在任务已超出期限
+                for task in self.tasks:
+                    if self.current_timepoint >= task.abs_deadline:
+                        logger.debug(f"task {task.id} exceeded the deadline")
+                        return False # 任务集不可调度
 
-            # 更新所有活跃任务（已到达并且未执行完毕的任务）的优先级
-            self.priority_tick()
+                # 更新所有活跃任务（已到达并且未执行完毕的任务）的优先级
+                self.priority_tick()
 
-            # 分配任务到处理器，processors的排序即为任务分配的顺序
-            self.allocation_tick()
+                # 分配任务到处理器，processors的排序即为任务分配的顺序
+                self.allocation_tick()
 
-            # 找出触发下一调度事件的时间点，并计算出距离现在还有多少时间
-            # Schedule events 包括两种情况，当 (a) 正在运行的作业完成时和 (b) 新作业到达时
-            running_task_end = [processor.end_timepoint 
-                                for processor in self.processors if processor.end_timepoint]
-            new_arrival = [task.arrival_timepoint for task in self.tasks 
-                           if task.arrival_timepoint > self.current_timepoint]
-            next_schedule_event_timepoint = min(running_task_end + new_arrival)
-            running_time = next_schedule_event_timepoint - self.current_timepoint
+                # 找出触发下一调度事件的时间点，并计算出距离现在还有多少时间
+                # Schedule events 包括两种情况，当 (a) 正在运行的作业完成时和 (b) 新作业到达时
+                running_task_end = [processor.end_timepoint 
+                                    for processor in self.processors if processor.end_timepoint]
+                new_arrival = [task.arrival_timepoint for task in self.tasks 
+                            if task.arrival_timepoint > self.current_timepoint]
+                next_schedule_event_timepoint = min(running_task_end + new_arrival)
+                running_time = next_schedule_event_timepoint - self.current_timepoint # simulation step
 
-            # 执行所有处理器上的任务
-            for processor in self.processors:
-                processor.execute_task(self.current_timepoint, running_time)
+                # 当 running_time <= 0 时，给出警告
+                if running_time <= 0:
+                    logger.critical(f"running time(simulation step) <= 0 will cause an infinite loop: running_time={running_time}")
 
-            # Update time
-            self.current_timepoint += running_time
-        else:
-            return True # 任务集可调度
+                # 执行所有处理器上的任务
+                for processor in self.processors:
+                    processor.execute_task(self.current_timepoint, running_time, enable_history)
+
+                # Update time
+                self.current_timepoint += running_time
+                pbar.update(running_time)
+            else:
+                # 当存在归一化利用率大于1的任务时，显然不可调度，判断任务已超出期限的时刻在 next_sche_event。
+                # 但是当 deadline 到 lcm_period 之间没有调度事件存在时，即 next_sche_event 在 lcm_period 之后，
+                # 因为 self.current_timepoint <= self.lcm_period 为 False，循环不再执行。没有判断 next_sche_event
+                # 是否有超出期限的任务，导致循环结束直接认为任务集可调度。如下图所示：
+                #            ┌────────────────────────────────────────────────────┬────────────────┐
+                #            │                                                    │                │
+                #            ├──────────────────┬─────────────────────────────────┤                │
+                #            │                  │                                 │                ▼
+                # first_sche_event(start)   deadline                         lcm_period      next_sche_event
+                #            │                                                                     │
+                #            │◄──────────────────────running_time(step)───────────────────────────►│
+                #            │                                                                     │
+                #
+                # 因此需要在循环结束时再判断一次是否存在任务已超出期限
+
+                # 检查是否存在任务已超出期限
+                for task in self.tasks:
+                    if self.current_timepoint >= task.abs_deadline:
+                        logger.debug(f"task {task.id} exceeded the deadline")
+                        return False # 任务集不可调度
+
+                return True # 任务集可调度
