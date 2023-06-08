@@ -5,8 +5,8 @@ from logger_config import logger
 
 def main():
     dg = data.DataGenerator()
-    task_set = dg.generate_task(7)
-    platform = dg.generate_platform(3)
+    platform = dg.generate_platform(5)
+    task_set = dg.generate_task(11)
     dg.generate_hyperedge()
 
     print(dg.hyperedges)

@@ -28,7 +28,7 @@ class DataGenerator(object):
 
         return self.processors
 
-    def generate_task(self, number_of_tasks, utilization_normalization=False):
+    def generate_task(self, number_of_tasks):
 
         # 生成 number_of_tasks 个二元组
         binaries = np.random.randint(1, 50, size=(number_of_tasks, 2))
@@ -40,13 +40,33 @@ class DataGenerator(object):
         # mask = triplets[:, 1] <= triplets[:, 2]
         # triplets = triplets[mask]
 
-        self.tasks = triplets
+        def calculate_normalized_utilization(task):
+            """输入一个三元组（任务），在最快的处理器上重新测量执行时间，计算利用率"""
+            if not self.processors:
+                logger.error("self.processors is empty, the processor platform may not be generated, \
+                             you should call generate_platform() first and then call generate_task()")
+
+            fastest_processor_speed = self.processors[0].speed # self.processors按照 speed 降序排序
+            exec_time_on_fst_p = task[0] / fastest_processor_speed # 在最快的处理器上测量得到的执行时间
+            period = task[2]
+            normalized_utilization = exec_time_on_fst_p / period # 计算利用率
+            
+            if normalized_utilization > 1:
+                logger.warning(f"task ")
+            return normalized_utilization
+        
+        # 根据triplets的第一列（执行时间）和第三列（周期）计算出归一化的利用率。
+        utilization_col = np.apply_along_axis(calculate_normalized_utilization, axis=1, arr=triplets)
+        # 把利用率一列加到triplets之后，变成quadruples
+        quadruples = np.hstack((triplets, utilization_col.reshape(-1, 1))) 
+
+        self.tasks = quadruples
 
         # 打印生成的任务
         logger.info("Generated tasks:")
-        for i, triplet in enumerate(triplets):
-            e, d, T = triplet
-            logger.info(f"task{i}: ({e}, {d}, {T})")
+        for i, quadruple in enumerate(quadruples):
+            e, d, T, u = quadruple
+            logger.info(f"task{i}: ({e}, {d}, {T}, {u})")
 
         return triplets
 
@@ -65,8 +85,8 @@ class DataGenerator(object):
 
         # 把 task_id_set 中的 task_id 对应的 task 添加到 scheduler 中
         for task_id in task_id_set:
-            e, d, T = self.tasks[task_id, :]
-            task = sc.Task(task_id, arrival_timepoint=0, execution_time=e, deadline=d, period=T)
+            e, d, T, _ = self.tasks[task_id, :]
+            task = sc.Task(task_id, arrival_timepoint=0, execution_time=int(e), deadline=int(d), period=int(T))
             scheduler.add_task(task)
 
         # 打印需要判定的待定超边
