@@ -183,7 +183,10 @@ class Scheduler(object):
             new_arrival = [task.arrival_timepoint for task in self.tasks 
                            if task.arrival_timepoint > self.current_timepoint]
             next_schedule_event_timepoint = min(running_task_end + new_arrival)
-            running_time = next_schedule_event_timepoint - self.current_timepoint
+            running_time = next_schedule_event_timepoint - self.current_timepoint # simulation step
+
+            if running_time <= 0:
+                logger.critical(f"running time(simulation step) <= 0 will cause an infinite loop: running_time={running_time}")
 
             # 执行所有处理器上的任务
             for processor in self.processors:
@@ -192,4 +195,25 @@ class Scheduler(object):
             # Update time
             self.current_timepoint += running_time
         else:
+            # 当存在归一化利用率大于1的任务时，显然不可调度，判断任务已超出期限的时刻在 next_sche_event。
+            # 但是当 deadline 到 lcm_period 之间没有调度事件存在时，即 next_sche_event 在 lcm_period 之后，
+            # 因为 self.current_timepoint <= self.lcm_period 为 False，循环不再执行。没有判断 next_sche_event
+            # 是否有超出期限的任务，导致循环结束直接认为任务集可调度。如下图所示：
+            #            ┌────────────────────────────────────────────────────┬────────────────┐
+            #            │                                                    │                │
+            #            ├──────────────────┬─────────────────────────────────┤                │
+            #            │                  │                                 │                ▼
+            # first_sche_event(start)   deadline                         lcm_period      next_sche_event
+            #            │                                                                     │
+            #            │◄──────────────────────running_time(step)───────────────────────────►│
+            #            │                                                                     │
+            #
+            # 因此需要在循环结束时再判断一次是否存在任务已超出期限
+
+            # 检查是否存在任务已超出期限
+            for task in self.tasks:
+                if self.current_timepoint >= task.abs_deadline:
+                    logger.debug(f"task {task.id} exceeded the deadline")
+                    return False # 任务集不可调度
+
             return True # 任务集可调度
