@@ -67,7 +67,7 @@ class DataGenerator(object):
         logger.info("Generated tasks:")
         for i, quadruple in enumerate(quadruples):
             e, d, T, u = quadruple
-            logger.info(f"task{i}: ({e}, {d}, {T}, {u})")
+            logger.info(f"task{i}: \t({e}, \t{d},\t{T},\t{u :.2f})")
 
         return triplets
 
