@@ -1,6 +1,8 @@
 import scheduler as sc
 import numpy as np
 import itertools
+import csv
+import os
 from logger_config import logger
 
 np.random.seed(1022) 
@@ -11,6 +13,10 @@ class DataGenerator(object):
         self.tasks: np.ndarray
         self.hyperedges = []
         self.negative_samples = []
+
+        # 如果data目录不存在，则创建它
+        if not os.path.exists("data"):
+            os.makedirs("data")
 
     def generate_platform(self, processors_number, speed_normalization=False):
         """随机生成一组速度不同的异构处理器平台"""
@@ -27,9 +33,11 @@ class DataGenerator(object):
             platform_speed = [processor.speed for processor in self.processors]
         logger.info(f"platform speed: {platform_speed}")
 
+        self.save_platform("data/platform.csv")
+
         return self.processors
 
-    def generate_task(self, number_of_tasks):
+    def generate_tasks(self, number_of_tasks):
 
         # 生成 number_of_tasks 个二元组
         binaries = np.random.randint(1, 50, size=(number_of_tasks, 2))
@@ -69,7 +77,31 @@ class DataGenerator(object):
             e, d, T, u = quadruple
             logger.info(f"task{i}: \t({e}, \t{d},\t{T},\t{u :.2f})")
 
-        return triplets
+        # 保存tasks
+        self.save_tasks("data/task_quadruples.csv")
+
+        return quadruples
+    
+    def save_tasks(self, file_name="data/task_quadruples.csv"):
+        np.savetxt(file_name, self.tasks, delimiter=",")
+
+    def save_platform(self, file_name="data/platform.csv"):
+        with open(file_name, 'w', newline='') as csvfile:
+            writer = csv.writer(csvfile)
+            for processor in self.processors:
+                writer.writerow([processor.id, processor.speed])
+
+    def save_hyperedges(self, file_name="data/hyperedges.csv"):
+        with open(file_name, 'w', newline='') as csvfile:
+            writer = csv.writer(csvfile)
+            for hyperedge in self.hyperedges:
+                writer.writerow([str(node_id) for node_id in hyperedge])
+
+    def save_negative_samples(self, file_name="data/negative_samples.csv"):
+        with open(file_name, 'w', newline='') as csvfile:
+            writer = csv.writer(csvfile)
+            for negative_sample in self.negative_samples:
+                writer.writerow([str(node_id) for node_id in negative_sample])
 
     def judge_feasibility(self, task_id_set: list):
         # 任务集为空，不需要调度
@@ -80,7 +112,7 @@ class DataGenerator(object):
         # 判断处理器平台是否为空，为空则需要生成处理器平台
         if not self.processors:
             print("processors is empty, need to generate processor platform")
-            return 
+            return
         
         scheduler = sc.Scheduler(self.processors)
 

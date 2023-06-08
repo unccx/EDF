@@ -5,11 +5,15 @@ from logger_config import logger
 
 def main():
     dg = data.DataGenerator()
-    platform = dg.generate_platform(5)
-    task_set = dg.generate_task(11)
-    dg.generate_hyperedge()
+    platform = dg.generate_platform(2)
+    task_set = dg.generate_tasks(5)
+
+    dg.generate_hyperedge(max_hyperedge_size=3)
+    dg.save_hyperedges()
+    dg.save_negative_samples()
 
     print(dg.hyperedges)
+
 
     # processors = [
     #     sc.Processor(id='A', speed=1),
