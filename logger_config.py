@@ -23,5 +23,5 @@ console_formatter = logging.Formatter('%(levelname)s - %(message)s')
 console_handler.setFormatter(console_formatter)
 
 # 将 console_handler 和 file_handler 添加到 logger 对象中
-logger.addHandler(console_handler)
+# logger.addHandler(console_handler)
 logger.addHandler(file_handler)

@@ -3,7 +3,7 @@ import numpy as np
 import itertools
 from logger_config import logger
 
-np.random.seed(42) 
+np.random.seed(1022) 
 
 class DataGenerator(object):
     def __init__(self):
@@ -91,7 +91,7 @@ class DataGenerator(object):
             scheduler.add_task(task)
 
         # 打印需要判定的待定超边
-        logger.info(f"Determining if schedulable: {task_id_set}")
+        logger.info(f"Determining schedulability: {task_id_set}")
 
         # 模拟调度过程判断任务集是否可调度
         feasible: bool = scheduler.run(enable_history=False)
