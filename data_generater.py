@@ -10,6 +10,7 @@ class DataGenerator(object):
         self.processors = []    # 生成的处理器序列，按照 speed 降序排序
         self.tasks: np.ndarray
         self.hyperedges = []
+        self.negative_samples = []
 
     def generate_platform(self, processors_number, speed_normalization=False):
         """随机生成一组速度不同的异构处理器平台"""
@@ -52,7 +53,7 @@ class DataGenerator(object):
             normalized_utilization = exec_time_on_fst_p / period # 计算利用率
             
             if normalized_utilization > 1:
-                logger.warning(f"task ")
+                logger.warning(f"task ({task[0]}, {task[1]}, {task[2]}) normalized utilization > 1")
             return normalized_utilization
         
         # 根据triplets的第一列（执行时间）和第三列（周期）计算出归一化的利用率。
@@ -130,7 +131,7 @@ class DataGenerator(object):
             return 
         else:
             # 任务集不可调度，作为负采样
-            pass
+            self.negative_samples.append(task_id_set)
 
         # task_id_set 在 processors 上不可调度，判断 task_id_set 的子集是否可调度
         combin = itertools.combinations(task_id_set, len(task_id_set)-1)
