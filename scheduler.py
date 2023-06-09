@@ -152,20 +152,20 @@ class Scheduler(object):
                                 for processor in self.processors if processor.current_task != None]
         logger.debug(f"Processor Allocation:{processor_allocation}")
 
-    def run(self, enable_history=True):
+    def run(self, truncated_lcm=-1, enable_history:bool=True):
         '''模拟对任务集进行调度
         返回一个布尔值，可实时调度为True，不可实时调度为False
         enable_history:
             启用处理器执行历史记录。如果需要gantt图可视化调度过程，需要为True
         '''
-        with tqdm(total=self.lcm_period) as pbar:
+        if truncated_lcm < 0 or truncated_lcm > self.lcm_period:
+            truncated_lcm = self.lcm_period
+
+        with tqdm(total=truncated_lcm) as pbar:
             pbar.set_description('Simulation Processing:')
-            while self.current_timepoint <= self.lcm_period:
-                # logger.info(f"Simulation progress: [{self.current_timepoint} / {self.lcm_period} = {self.current_timepoint / self.lcm_period * 100 :.2f}%]:")
-                # print(f"Simulation progress: [{self.current_timepoint} / {self.lcm_period} = {self.current_timepoint / self.lcm_period * 100 :.2f}%]:", end='', flush=True)
+            while self.current_timepoint <= truncated_lcm:
+                # print(f"Simulation progress: [{self.current_timepoint} / {truncated_lcm} = {self.current_timepoint / self.truncated_lcm * 100 :.2f}%]:", end='', flush=True)
                 # print("\r", end='', flush=True)
-                # 删除上一行控制台输出
-                # print("\r\033[K", end='', flush=True)
 
                 # 检查是否存在任务已超出期限
                 for task in self.tasks:
