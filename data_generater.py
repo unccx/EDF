@@ -5,12 +5,12 @@ import csv
 import os
 from logger_config import logger
 
-np.random.seed(1022) 
+np.random.seed(12333121) 
 
 class DataGenerator(object):
     def __init__(self):
-        self.processors = []    # 生成的处理器序列，按照 speed 降序排序
-        self.tasks: np.ndarray
+        self.processors = []        # 生成的处理器序列，按照 speed 降序排序
+        self.tasks: np.ndarray      # tasks是一个 4 * number_of_tasks 的二维数组，row_index为task_id, 
         self.hyperedges = []
         self.negative_samples = []
 
@@ -38,16 +38,14 @@ class DataGenerator(object):
         return self.processors
 
     def generate_tasks(self, number_of_tasks):
+        if not self.processors:
+            logger.error(f"platform not generated")
 
         # 生成 number_of_tasks 个二元组
         binaries = np.random.randint(1, 50, size=(number_of_tasks, 2))
 
         # 重复最后一列加到最后，即三元组中的deadline == period
         triplets = np.hstack((binaries, binaries[:, -1].reshape(-1, 1)))
-
-        # # 筛选出第二个元素不大于第三个元素的三元组
-        # mask = triplets[:, 1] <= triplets[:, 2]
-        # triplets = triplets[mask]
 
         def calculate_normalized_utilization(task):
             """输入一个三元组（任务），在最快的处理器上重新测量执行时间，计算利用率"""
@@ -69,6 +67,14 @@ class DataGenerator(object):
         # 把利用率一列加到triplets之后，变成quadruples
         quadruples = np.hstack((triplets, utilization_col.reshape(-1, 1))) 
 
+        # 筛选出利用率小于 1 的四元组
+        mask = quadruples[:, 3] < 1
+        quadruples = quadruples[mask]
+
+        key = quadruples[:, 3] # 获取每一行的第四个元素作为排序的关键字
+        indices = np.argsort(key) # 获取排序后每一行的索引位置
+        quadruples = quadruples[indices] # 根据索引位置获取排序后的结果
+
         self.tasks = quadruples
 
         # 打印生成的任务
@@ -82,6 +88,7 @@ class DataGenerator(object):
 
         return quadruples
     
+    # 保存数据
     def save_tasks(self, file_name="data/task_quadruples.csv"):
         np.savetxt(file_name, self.tasks, delimiter=",")
 
@@ -103,6 +110,14 @@ class DataGenerator(object):
             for negative_sample in self.negative_samples:
                 writer.writerow([str(node_id) for node_id in negative_sample])
 
+    def calculate_system_utilization(self, task_id_set: list):
+        sum_of_normalized_utilization = sum(self.tasks[task_id_set][:, 3])
+        fastest_processor_speed = self.processors[0].speed
+        platform_speed = [processor.speed / fastest_processor_speed for processor in self.processors] # 处理器速度归一化
+        sum_of_normalized_speed = sum(platform_speed) # S_m
+        return sum_of_normalized_utilization / sum_of_normalized_speed
+
+
     def judge_feasibility(self, task_id_set: list):
         # 任务集为空，不需要调度
         if not task_id_set:
@@ -119,14 +134,12 @@ class DataGenerator(object):
         # 把 task_id_set 中的 task_id 对应的 task 添加到 scheduler 中
         for task_id in task_id_set:
             e, d, T, _ = self.tasks[task_id, :]
-            task = sc.Task(task_id, arrival_timepoint=0, execution_time=int(e), deadline=int(d), period=int(T))
+            task = sc.Task(task_id, arrival_timepoint=0, 
+                           execution_time=int(e), deadline=int(d), period=int(T))
             scheduler.add_task(task)
 
-        # 打印需要判定的待定超边
-        logger.info(f"Determining schedulability: {task_id_set}")
-
         # 模拟调度过程判断任务集是否可调度
-        feasible: bool = scheduler.run(enable_history=False)
+        feasible: bool = scheduler.run(truncated_lcm=100000, enable_history=False)
 
         # 打印调度可行性结果
         logger.info(f"feasible: {feasible}")
@@ -143,22 +156,27 @@ class DataGenerator(object):
         if not max_hyperedge_size or max_hyperedge_size > number_of_tasks:
             max_hyperedge_size = number_of_tasks 
 
+        # 从生成的任务节点中挑选 max_hyperedge_size 个节点作为任务集，去充分地搜索可能存在的超边
         task_id_set = list(range(number_of_tasks))
         combin = itertools.combinations(task_id_set, max_hyperedge_size)
         for subset in combin:
-            self.search_hyperedge(subset)
+            self.search_hyperedge(list(subset))
 
         return self.hyperedges
 
 
     def search_hyperedge(self, task_id_set):
         """从一组任务节点中递归地找出所有的超边"""
+
         # 判断 task_id_set 是否为空
         if not task_id_set:
             return
 
-        # 判断 task_set 在 processors 这个平台上是否可调度
-        if self.judge_feasibility(task_id_set):
+        # 先判断是否满足系统利用率小于等于1的可调度性必要条件，然后判断 task_set 在 processors 这个平台上是否可调度
+        system_utilization = self.calculate_system_utilization(task_id_set)
+        # 打印需要判定的任务集及系统利用率
+        logger.info(f"Determining schedulability: {task_id_set} system utilization: {system_utilization * 100 :.2f}%")
+        if system_utilization <= 1 and self.judge_feasibility(task_id_set):
             self.hyperedges.append(task_id_set)
             return 
         else:
@@ -168,4 +186,4 @@ class DataGenerator(object):
         # task_id_set 在 processors 上不可调度，判断 task_id_set 的子集是否可调度
         combin = itertools.combinations(task_id_set, len(task_id_set)-1)
         for subset in combin:
-            self.search_hyperedge(subset)
+            self.search_hyperedge(list(subset))
