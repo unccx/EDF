@@ -5,7 +5,7 @@ import csv
 import os
 from logger_config import logger
 
-np.random.seed(12333121) 
+np.random.seed(1231) 
 
 class DataGenerator(object):
     def __init__(self):

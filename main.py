@@ -5,10 +5,10 @@ from logger_config import logger
 
 def main():
     dg = data.DataGenerator()
-    platform = dg.generate_platform(2)
-    task_set = dg.generate_tasks(5)
+    platform = dg.generate_platform(5)
+    task_set = dg.generate_tasks(11)
 
-    dg.generate_hyperedge(max_hyperedge_size=3)
+    dg.generate_hyperedge()
     dg.save_hyperedges()
     dg.save_negative_samples()
 

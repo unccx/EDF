@@ -164,7 +164,7 @@ class Scheduler(object):
         with tqdm(total=truncated_lcm) as pbar:
             pbar.set_description('Simulation Processing:')
             while self.current_timepoint <= truncated_lcm:
-                # print(f"Simulation progress: [{self.current_timepoint} / {truncated_lcm} = {self.current_timepoint / self.lcm_period * 100 :.2f}%]:", end='', flush=True)
+                # print(f"Simulation progress: [{self.current_timepoint} / {truncated_lcm} = {self.current_timepoint / self.truncated_lcm * 100 :.2f}%]:", end='', flush=True)
                 # print("\r", end='', flush=True)
 
                 # 检查是否存在任务已超出期限
