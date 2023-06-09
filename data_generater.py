@@ -165,8 +165,12 @@ class DataGenerator(object):
         return self.hyperedges
 
 
-    def search_hyperedge(self, task_id_set):
+    def search_hyperedge(self, task_id_set: list):
         """从一组任务节点中递归地找出所有的超边"""
+
+        # 判断任务集是否已经判定过可调度性
+        if task_id_set in self.hyperedges + self.negative_samples:
+            return
 
         # 判断 task_id_set 是否为空
         if not task_id_set:
