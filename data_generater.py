@@ -95,7 +95,7 @@ class DataGenerator(object):
             for negative_sample in self.negative_samples:
                 writer.writerow([str(node_id) for node_id in negative_sample])
 
-    def calculate_system_utilization(self, task_id_set: list):
+    def calculate_system_utilization(self, task_id_set):
         sum_of_normalized_utilization = sum(self.tasks[task_id_set][:, 3])
         fastest_processor_speed = self.processors[0].speed
         platform_speed = [processor.speed / fastest_processor_speed for processor in self.processors] # 处理器速度归一化
@@ -103,7 +103,7 @@ class DataGenerator(object):
         return sum_of_normalized_utilization / sum_of_normalized_speed
 
 
-    def judge_feasibility(self, task_id_set: list):
+    def judge_feasibility(self, task_id_set):
         # 任务集为空，不需要调度
         if not task_id_set:
             print("task_id_set is empty and does not need to be scheduled")
@@ -139,15 +139,15 @@ class DataGenerator(object):
             max_hyperedge_size = number_of_tasks 
 
         # 从生成的任务节点中挑选 max_hyperedge_size 个节点作为任务集，去充分地搜索可能存在的超边
-        task_id_set = list(range(number_of_tasks))
+        task_id_set = frozenset(range(number_of_tasks))
         combin = itertools.combinations(task_id_set, max_hyperedge_size)
         for subset in combin:
-            self.search_hyperedge(list(subset))
+            self.search_hyperedge(frozenset(subset))
 
         return self.hyperedges
 
 
-    def search_hyperedge(self, task_id_set: list):
+    def search_hyperedge(self, task_id_set):
         """从一组任务节点中递归地找出所有的超边"""
 
         # 判断任务集是否已经判定过可调度性
@@ -174,4 +174,4 @@ class DataGenerator(object):
         # task_id_set 在 processors 上不可调度，判断 task_id_set 的子集是否可调度
         combin = itertools.combinations(task_id_set, len(task_id_set)-1)
         for subset in combin:
-            self.search_hyperedge(list(subset))
+            self.search_hyperedge(frozenset(subset))
