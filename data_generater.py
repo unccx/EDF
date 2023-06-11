@@ -41,39 +41,24 @@ class DataGenerator(object):
         if not self.processors:
             logger.error(f"platform not generated")
 
-        # 生成 number_of_tasks 个二元组
-        binaries = np.random.randint(1, 50, size=(number_of_tasks, 2))
+        # 随机生成一列归一化利用率
+        utilization_col = np.random.rand(number_of_tasks).reshape(-1, 1)
+        utilization_col = np.sort(utilization_col, axis=0) # 对生成的利用率排序
 
-        # 重复最后一列加到最后，即三元组中的deadline == period
-        triplets = np.hstack((binaries, binaries[:, -1].reshape(-1, 1)))
+        # 随机生成一列deadline
+        deadline_col = np.random.randint(1, 100, size=number_of_tasks).reshape(-1, 1)
 
-        def calculate_normalized_utilization(task):
-            """输入一个三元组（任务），在最快的处理器上重新测量执行时间，计算利用率"""
-            if not self.processors:
-                logger.error("self.processors is empty, the processor platform may not be generated, \
-                             you should call generate_platform() first and then call generate_task()")
+        # # 随机生成一列period，需要 period >= deadline
+        # period_col = np.random.randint(1, 100, size=(number_of_tasks, 1)) + deadline_col
+        # 随机生成一列period，需要 period == deadline
+        period_col = np.random.randint(0, 1, size=(number_of_tasks, 1)) + deadline_col
 
-            fastest_processor_speed = self.processors[0].speed # self.processors按照 speed 降序排序
-            exec_time_on_fst_p = task[0] / fastest_processor_speed # 在最快的处理器上测量得到的执行时间
-            period = task[2]
-            normalized_utilization = exec_time_on_fst_p / period # 计算利用率
-            
-            if normalized_utilization > 1:
-                logger.warning(f"task ({task[0]}, {task[1]}, {task[2]}) normalized utilization > 1")
-            return normalized_utilization
-        
-        # 根据triplets的第一列（执行时间）和第三列（周期）计算出归一化的利用率。
-        utilization_col = np.apply_along_axis(calculate_normalized_utilization, axis=1, arr=triplets)
-        # 把利用率一列加到triplets之后，变成quadruples
-        quadruples = np.hstack((triplets, utilization_col.reshape(-1, 1))) 
+        # 根据周期和归一化利用率计算出在最慢处理器上测量的执行时间。
+        fastest_processor_speed = self.processors[0].speed # self.processors按照 speed 降序排序
+        exec_time_col = period_col * utilization_col * fastest_processor_speed
+        exec_time_col = np.ceil(exec_time_col)
 
-        # 筛选出利用率小于 1 的四元组
-        mask = quadruples[:, 3] < 1
-        quadruples = quadruples[mask]
-
-        key = quadruples[:, 3] # 获取每一行的第四个元素作为排序的关键字
-        indices = np.argsort(key) # 获取排序后每一行的索引位置
-        quadruples = quadruples[indices] # 根据索引位置获取排序后的结果
+        quadruples = np.hstack((exec_time_col, deadline_col, period_col, utilization_col))
 
         self.tasks = quadruples
 
@@ -81,7 +66,7 @@ class DataGenerator(object):
         logger.info("Generated tasks:")
         for i, quadruple in enumerate(quadruples):
             e, d, T, u = quadruple
-            logger.info(f"task{i}: \t({e}, \t{d},\t{T},\t{u :.2f})")
+            logger.info(f"task{i}: \t({e},\t{d},\t{T},\t{u :.2f})")
 
         # 保存tasks
         self.save_tasks("data/task_quadruples.csv")
@@ -139,10 +124,7 @@ class DataGenerator(object):
             scheduler.add_task(task)
 
         # 模拟调度过程判断任务集是否可调度
-        feasible: bool = scheduler.run(truncated_lcm=100000, enable_history=False)
-
-        # 打印调度可行性结果
-        logger.info(f"feasible: {feasible}")
+        feasible: bool = scheduler.run(truncated_lcm=500000, enable_history=False)
 
         return feasible
 
@@ -182,10 +164,12 @@ class DataGenerator(object):
         logger.info(f"Determining schedulability: {task_id_set} system utilization: {system_utilization * 100 :.2f}%")
         if system_utilization <= 1 and self.judge_feasibility(task_id_set):
             self.hyperedges.append(task_id_set)
+            logger.info(f"feasible: {True}") # 打印调度可行性结果
             return 
         else:
             # 任务集不可调度，作为负采样
             self.negative_samples.append(task_id_set)
+            logger.info(f"feasible: {False}") # 打印调度可行性结果
 
         # task_id_set 在 processors 上不可调度，判断 task_id_set 的子集是否可调度
         combin = itertools.combinations(task_id_set, len(task_id_set)-1)
