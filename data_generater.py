@@ -11,14 +11,14 @@ class DataGenerator(object):
     def __init__(self):
         self.processors = []        # 生成的处理器序列，按照 speed 降序排序
         self.tasks: np.ndarray      # tasks是一个 4 * number_of_tasks 的二维数组，row_index为task_id, 
-        self.hyperedges = []
-        self.negative_samples = []
+        self.hyperedges: set = set()
+        self.negative_samples: set = set()
 
         # 如果data目录不存在，则创建它
         if not os.path.exists("data"):
             os.makedirs("data")
 
-    def generate_platform(self, processors_number, speed_normalization=False):
+    def generate_platform(self, processors_number: int, speed_normalization: bool=False):
         """随机生成一组速度不同的异构处理器平台"""
         for i in range(0, processors_number):
             processor = sc.Processor(id=f"P{i}", speed=np.random.randint(1, 10))
@@ -96,10 +96,14 @@ class DataGenerator(object):
                 writer.writerow([str(node_id) for node_id in negative_sample])
 
     def calculate_system_utilization(self, task_id_set):
+        task_id_set = list(task_id_set)
         sum_of_normalized_utilization = sum(self.tasks[task_id_set][:, 3])
+
+        # 求处理器归一化后，所有处理器性能之和 S_m
         fastest_processor_speed = self.processors[0].speed
         platform_speed = [processor.speed / fastest_processor_speed for processor in self.processors] # 处理器速度归一化
         sum_of_normalized_speed = sum(platform_speed) # S_m
+
         return sum_of_normalized_utilization / sum_of_normalized_speed
 
 
@@ -147,31 +151,41 @@ class DataGenerator(object):
         return self.hyperedges
 
 
-    def search_hyperedge(self, task_id_set):
+    def search_hyperedge(self, task_id_set: frozenset) -> bool:
         """从一组任务节点中递归地找出所有的超边"""
-
-        # 判断任务集是否已经判定过可调度性
-        if task_id_set in self.hyperedges + self.negative_samples:
-            return
 
         # 判断 task_id_set 是否为空
         if not task_id_set:
-            return
+            return True
+
+        # 检查任务集是否已经判定过可调度性或任务集中存在不可调度任务组合
+        if task_id_set in self.hyperedges:
+            return True
+        # 只有小于等于 number_of_tasks 的负采样组合才可能导致 task_id_set 不可调度
+        number_of_tasks = len(task_id_set)
+        negative_samples = [negative_sample for negative_sample in self.negative_samples if len(negative_sample) <= number_of_tasks]
+        for negative_sample in negative_samples:
+            if negative_sample.issubset(task_id_set):
+                logger.info(f"feasible: False \ttask set: {task_id_set}") # 打印调度可行性结果
+                return False
 
         # 先判断是否满足系统利用率小于等于1的可调度性必要条件，然后判断 task_set 在 processors 这个平台上是否可调度
         system_utilization = self.calculate_system_utilization(task_id_set)
-        # 打印需要判定的任务集及系统利用率
-        logger.info(f"Determining schedulability: {task_id_set} system utilization: {system_utilization * 100 :.2f}%")
         if system_utilization <= 1 and self.judge_feasibility(task_id_set):
-            self.hyperedges.append(task_id_set)
-            logger.info(f"feasible: {True}") # 打印调度可行性结果
-            return 
-        else:
-            # 任务集不可调度，作为负采样
-            self.negative_samples.append(task_id_set)
-            logger.info(f"feasible: {False}") # 打印调度可行性结果
+            self.hyperedges.add(task_id_set)
+            logger.info(f"feasible: True \tsystem utilization: {system_utilization * 100 :.2f}%\ttask set: {task_id_set}") # 打印调度可行性结果
+            return True
 
-        # task_id_set 在 processors 上不可调度，判断 task_id_set 的子集是否可调度
+        logger.info(f"feasible: False \tsystem utilization: {system_utilization * 100 :.2f}%\ttask set: {task_id_set}") # 打印调度可行性结果
+
+        # 走到这一步，说明 task_id_set 在 processors 上不可调度，判断 task_id_set 的子集是否可调度
         combin = itertools.combinations(task_id_set, len(task_id_set)-1)
+        flag: bool = True # 记录所有真子集是否都是可调度的
         for subset in combin:
-            self.search_hyperedge(frozenset(subset))
+            flag = self.search_hyperedge(frozenset(subset)) and flag # 真子集全部可调度，flag为True；存在真子集不可调度，flag为False
+
+        # 当 task_id_set 的真子集都可调度且 task_id_set 不可调度时，说明 task_id_set 是一个会导致任务集不可调度的任务组合，任务集中存在这个组合即不可调度
+        if flag: 
+            self.negative_samples.add(task_id_set)
+
+        return False
