@@ -11,14 +11,15 @@ class DataGenerator(object):
     def __init__(self):
         self.processors = []        # 生成的处理器序列，按照 speed 降序排序
         self.tasks: np.ndarray      # tasks是一个 4 * number_of_tasks 的二维数组，row_index为task_id, 
-        self.hyperedges = []
-        self.negative_samples = []
+        self.hyperedges: set = set()
+        self.negative_samples: set = set()
+        self.minimal_unschedulable_combinations: set = set()
 
         # 如果data目录不存在，则创建它
         if not os.path.exists("data"):
             os.makedirs("data")
 
-    def generate_platform(self, processors_number, speed_normalization=False):
+    def generate_platform(self, processors_number: int, speed_normalization: bool=False):
         """随机生成一组速度不同的异构处理器平台"""
         for i in range(0, processors_number):
             processor = sc.Processor(id=f"P{i}", speed=np.random.randint(1, 10))
@@ -95,24 +96,35 @@ class DataGenerator(object):
             for negative_sample in self.negative_samples:
                 writer.writerow([str(node_id) for node_id in negative_sample])
 
-    def calculate_system_utilization(self, task_id_set: list):
+    def calculate_system_utilization(self, task_id_set):
+        """计算系统利用率"""
+        task_id_set = list(task_id_set)
         sum_of_normalized_utilization = sum(self.tasks[task_id_set][:, 3])
+
+        # 求处理器归一化后，所有处理器性能之和 S_m
         fastest_processor_speed = self.processors[0].speed
         platform_speed = [processor.speed / fastest_processor_speed for processor in self.processors] # 处理器速度归一化
         sum_of_normalized_speed = sum(platform_speed) # S_m
+
         return sum_of_normalized_utilization / sum_of_normalized_speed
+    
+    def has_unschedulable_combination(self, task_id_set):
+        """检查任务集是否含有不可调度组合，如果存在返回True，否则False"""
+        for combin in self.minimal_unschedulable_combinations:
+            if combin.issubset(task_id_set):
+                return True # 包含不可调度组合
+        return False
 
-
-    def judge_feasibility(self, task_id_set: list):
+    def judge_feasibility(self, task_id_set) -> bool:
         # 任务集为空，不需要调度
         if not task_id_set:
-            print("task_id_set is empty and does not need to be scheduled")
-            return
+            logger.warning("task_id_set is empty and does not need to be scheduled")
+            return False
 
         # 判断处理器平台是否为空，为空则需要生成处理器平台
         if not self.processors:
-            print("processors is empty, need to generate processor platform")
-            return
+            logger.error("processors is empty, need to generate processor platform")
+            return False
         
         scheduler = sc.Scheduler(self.processors)
 
@@ -124,7 +136,7 @@ class DataGenerator(object):
             scheduler.add_task(task)
 
         # 模拟调度过程判断任务集是否可调度
-        feasible: bool = scheduler.run(truncated_lcm=500000, enable_history=False)
+        feasible: bool = scheduler.run(truncated_lcm=1000000, enable_history=False)
 
         return feasible
 
@@ -133,45 +145,85 @@ class DataGenerator(object):
         保存在self.hyperedges中
         """
 
+        # 清除 data 目录下的 hyperedges.csv 和 negative_samples.csv
+        hyperedges_file = "./data/hyperedges.csv"
+        negative_samples_file = "./data/negative_samples.csv"
+        if os.path.exists(hyperedges_file):
+            os.remove(hyperedges_file)
+        if os.path.exists(negative_samples_file):
+            os.remove(negative_samples_file)
+
+
         # 若超边最大尺寸没有设置或大于节点数量，则设为节点数量（任务数量）
         number_of_tasks = self.tasks.shape[0]
         if not max_hyperedge_size or max_hyperedge_size > number_of_tasks:
             max_hyperedge_size = number_of_tasks 
 
         # 从生成的任务节点中挑选 max_hyperedge_size 个节点作为任务集，去充分地搜索可能存在的超边
-        task_id_set = list(range(number_of_tasks))
+        task_id_set = frozenset(range(number_of_tasks))
         combin = itertools.combinations(task_id_set, max_hyperedge_size)
         for subset in combin:
-            self.search_hyperedge(list(subset))
+            self.search_hyperedge(frozenset(subset))
 
         return self.hyperedges
 
 
-    def search_hyperedge(self, task_id_set: list):
+    def search_hyperedge(self, task_id_set: frozenset) -> bool:
         """从一组任务节点中递归地找出所有的超边"""
-
-        # 判断任务集是否已经判定过可调度性
-        if task_id_set in self.hyperedges + self.negative_samples:
-            return
 
         # 判断 task_id_set 是否为空
         if not task_id_set:
-            return
-
-        # 先判断是否满足系统利用率小于等于1的可调度性必要条件，然后判断 task_set 在 processors 这个平台上是否可调度
+            return True
+        
+        # 判断任务集是否已经判定过可调度性，如果已经搜索过则不再往下搜索
+        if task_id_set in self.hyperedges:
+            return True
+        if task_id_set in self.negative_samples:
+            return False
+        
+        # 检查 task_id_set 是否为已判定为可调度的任务集的子集
+        for hyperedge in self.hyperedges:
+            if hyperedge.issuperset(task_id_set):
+                # 这里的可调度超边为之前经历模拟验证的可调度超边的子集，因此被剪枝。在其他分支中又出现需要判断可调度性，所以不用记录为超边
+                return True
+        
+        # 先判断是否满足系统利用率小于等于1的可调度性必要条件，
+        # 然后判断任务集中是否包含不可调度组合
+        # 最后通过模拟验证 task_set 在 processors 这个平台上是否可调度
         system_utilization = self.calculate_system_utilization(task_id_set)
-        # 打印需要判定的任务集及系统利用率
-        logger.info(f"Determining schedulability: {task_id_set} system utilization: {system_utilization * 100 :.2f}%")
-        if system_utilization <= 1 and self.judge_feasibility(task_id_set):
-            self.hyperedges.append(task_id_set)
-            logger.info(f"feasible: {True}") # 打印调度可行性结果
-            return 
-        else:
-            # 任务集不可调度，作为负采样
-            self.negative_samples.append(task_id_set)
-            logger.info(f"feasible: {False}") # 打印调度可行性结果
+        if (system_utilization <= 1                                     # 不满足必要条件，也要继续往下搜索子集可调度性
+            and (not self.has_unschedulable_combination(task_id_set))   # 发现含有不可调度组合直接判定任务集不可调度，也要继续往下搜索子集
+            and self.judge_feasibility(task_id_set)):
+            # 记录已搜索过的超边
+            self.hyperedges.add(task_id_set)
 
-        # task_id_set 在 processors 上不可调度，判断 task_id_set 的子集是否可调度
-        combin = itertools.combinations(task_id_set, len(task_id_set)-1)
-        for subset in combin:
-            self.search_hyperedge(list(subset))
+            # 保存超边
+            file_name="data/hyperedges.csv"
+            with open(file_name, 'a', newline='') as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerow([str(node_id) for node_id in task_id_set])
+            logger.info(f"feasible: True \tsystem utilization: {system_utilization * 100 :.2f}%\ttask set: {task_id_set}") # 打印调度可行性结果
+
+            return True
+        else: # task_id_set 不可调度，搜索子集
+            # 记录已搜索过的负采样
+            self.negative_samples.add(task_id_set)
+
+            # 保存负采样
+            file_name = "data/negative_samples.csv"
+            with open(file_name, 'a', newline='') as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerow([str(node_id) for node_id in task_id_set])
+            logger.info(f"feasible: False \tsystem utilization: {system_utilization * 100 :.2f}%\ttask set: {task_id_set}") # 打印调度可行性结果
+
+            # 走到这一步，说明 task_id_set 在 processors 上不可调度，判断 task_id_set 的子集是否可调度
+            combin = itertools.combinations(task_id_set, len(task_id_set)-1)
+            flag: bool = True # 记录所有真子集是否都是可调度的
+            for subset in combin:
+                flag = self.search_hyperedge(frozenset(subset)) and flag # 真子集全部可调度，flag为True；存在真子集不可调度，flag为False
+
+            # 当 task_id_set 的真子集都可调度且 task_id_set 不可调度时，说明 task_id_set 是一个会导致任务集不可调度的最小任务组合，任务集中存在这个组合即不可调度
+            if flag: 
+                self.minimal_unschedulable_combinations.add(task_id_set)
+
+            return False
