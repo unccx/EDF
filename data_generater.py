@@ -13,6 +13,7 @@ class DataGenerator(object):
         self.tasks: np.ndarray      # tasks是一个 4 * number_of_tasks 的二维数组，row_index为task_id, 
         self.hyperedges: set = set()
         self.negative_samples: set = set()
+        self.minimal_unschedulable_combinations: set = set()
 
         # 如果data目录不存在，则创建它
         if not os.path.exists("data"):
@@ -96,6 +97,7 @@ class DataGenerator(object):
                 writer.writerow([str(node_id) for node_id in negative_sample])
 
     def calculate_system_utilization(self, task_id_set):
+        """计算系统利用率"""
         task_id_set = list(task_id_set)
         sum_of_normalized_utilization = sum(self.tasks[task_id_set][:, 3])
 
@@ -105,18 +107,24 @@ class DataGenerator(object):
         sum_of_normalized_speed = sum(platform_speed) # S_m
 
         return sum_of_normalized_utilization / sum_of_normalized_speed
+    
+    def has_unschedulable_combination(self, task_id_set):
+        """检查任务集是否含有不可调度组合，如果存在返回True，否则False"""
+        for combin in self.minimal_unschedulable_combinations:
+            if combin.issubset(task_id_set):
+                return True # 包含不可调度组合
+        return False
 
-
-    def judge_feasibility(self, task_id_set):
+    def judge_feasibility(self, task_id_set) -> bool:
         # 任务集为空，不需要调度
         if not task_id_set:
-            print("task_id_set is empty and does not need to be scheduled")
-            return
+            logger.warning("task_id_set is empty and does not need to be scheduled")
+            return False
 
         # 判断处理器平台是否为空，为空则需要生成处理器平台
         if not self.processors:
-            print("processors is empty, need to generate processor platform")
-            return
+            logger.error("processors is empty, need to generate processor platform")
+            return False
         
         scheduler = sc.Scheduler(self.processors)
 
@@ -128,7 +136,7 @@ class DataGenerator(object):
             scheduler.add_task(task)
 
         # 模拟调度过程判断任务集是否可调度
-        feasible: bool = scheduler.run(truncated_lcm=500000, enable_history=False)
+        feasible: bool = scheduler.run(truncated_lcm=1000000, enable_history=False)
 
         return feasible
 
@@ -136,6 +144,15 @@ class DataGenerator(object):
         """为节点集合充分的生成超边
         保存在self.hyperedges中
         """
+
+        # 清除 data 目录下的 hyperedges.csv 和 negative_samples.csv
+        hyperedges_file = "./data/hyperedges.csv"
+        negative_samples_file = "./data/negative_samples.csv"
+        if os.path.exists(hyperedges_file):
+            os.remove(hyperedges_file)
+        if os.path.exists(negative_samples_file):
+            os.remove(negative_samples_file)
+
 
         # 若超边最大尺寸没有设置或大于节点数量，则设为节点数量（任务数量）
         number_of_tasks = self.tasks.shape[0]
@@ -157,35 +174,56 @@ class DataGenerator(object):
         # 判断 task_id_set 是否为空
         if not task_id_set:
             return True
-
-        # 检查任务集是否已经判定过可调度性或任务集中存在不可调度任务组合
+        
+        # 判断任务集是否已经判定过可调度性，如果已经搜索过则不再往下搜索
         if task_id_set in self.hyperedges:
             return True
-        # 只有小于等于 number_of_tasks 的负采样组合才可能导致 task_id_set 不可调度
-        number_of_tasks = len(task_id_set)
-        negative_samples = [negative_sample for negative_sample in self.negative_samples if len(negative_sample) <= number_of_tasks]
-        for negative_sample in negative_samples:
-            if negative_sample.issubset(task_id_set):
-                logger.info(f"feasible: False \ttask set: {task_id_set}") # 打印调度可行性结果
-                return False
-
-        # 先判断是否满足系统利用率小于等于1的可调度性必要条件，然后判断 task_set 在 processors 这个平台上是否可调度
+        if task_id_set in self.negative_samples:
+            return False
+        
+        # 检查 task_id_set 是否为已判定为可调度的任务集的子集
+        for hyperedge in self.hyperedges:
+            if hyperedge.issuperset(task_id_set):
+                # 这里的可调度超边为之前经历模拟验证的可调度超边的子集，因此被剪枝。在其他分支中又出现需要判断可调度性，所以不用记录为超边
+                return True
+        
+        # 先判断是否满足系统利用率小于等于1的可调度性必要条件，
+        # 然后判断任务集中是否包含不可调度组合
+        # 最后通过模拟验证 task_set 在 processors 这个平台上是否可调度
         system_utilization = self.calculate_system_utilization(task_id_set)
-        if system_utilization <= 1 and self.judge_feasibility(task_id_set):
+        if (system_utilization <= 1                                     # 不满足必要条件，也要继续往下搜索子集可调度性
+            and (not self.has_unschedulable_combination(task_id_set))   # 发现含有不可调度组合直接判定任务集不可调度，也要继续往下搜索子集
+            and self.judge_feasibility(task_id_set)):
+            # 记录已搜索过的超边
             self.hyperedges.add(task_id_set)
+
+            # 保存超边
+            file_name="data/hyperedges.csv"
+            with open(file_name, 'a', newline='') as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerow([str(node_id) for node_id in task_id_set])
             logger.info(f"feasible: True \tsystem utilization: {system_utilization * 100 :.2f}%\ttask set: {task_id_set}") # 打印调度可行性结果
+
             return True
-
-        logger.info(f"feasible: False \tsystem utilization: {system_utilization * 100 :.2f}%\ttask set: {task_id_set}") # 打印调度可行性结果
-
-        # 走到这一步，说明 task_id_set 在 processors 上不可调度，判断 task_id_set 的子集是否可调度
-        combin = itertools.combinations(task_id_set, len(task_id_set)-1)
-        flag: bool = True # 记录所有真子集是否都是可调度的
-        for subset in combin:
-            flag = self.search_hyperedge(frozenset(subset)) and flag # 真子集全部可调度，flag为True；存在真子集不可调度，flag为False
-
-        # 当 task_id_set 的真子集都可调度且 task_id_set 不可调度时，说明 task_id_set 是一个会导致任务集不可调度的任务组合，任务集中存在这个组合即不可调度
-        if flag: 
+        else: # task_id_set 不可调度，搜索子集
+            # 记录已搜索过的负采样
             self.negative_samples.add(task_id_set)
 
-        return False
+            # 保存负采样
+            file_name = "data/negative_samples.csv"
+            with open(file_name, 'a', newline='') as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerow([str(node_id) for node_id in task_id_set])
+            logger.info(f"feasible: False \tsystem utilization: {system_utilization * 100 :.2f}%\ttask set: {task_id_set}") # 打印调度可行性结果
+
+            # 走到这一步，说明 task_id_set 在 processors 上不可调度，判断 task_id_set 的子集是否可调度
+            combin = itertools.combinations(task_id_set, len(task_id_set)-1)
+            flag: bool = True # 记录所有真子集是否都是可调度的
+            for subset in combin:
+                flag = self.search_hyperedge(frozenset(subset)) and flag # 真子集全部可调度，flag为True；存在真子集不可调度，flag为False
+
+            # 当 task_id_set 的真子集都可调度且 task_id_set 不可调度时，说明 task_id_set 是一个会导致任务集不可调度的最小任务组合，任务集中存在这个组合即不可调度
+            if flag: 
+                self.minimal_unschedulable_combinations.add(task_id_set)
+
+            return False
