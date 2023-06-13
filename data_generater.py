@@ -201,7 +201,7 @@ class DataGenerator(object):
             file_name="data/hyperedges.csv"
             with open(file_name, 'a', newline='') as csvfile:
                 writer = csv.writer(csvfile)
-                writer.writerow([str(node_id) for node_id in task_id_set])
+                writer.writerow([str(node_id) for node_id in sorted(task_id_set)])
             logger.info(f"feasible: True \tsystem utilization: {system_utilization * 100 :.2f}%\ttask set: {task_id_set}") # 打印调度可行性结果
 
             return True
@@ -213,7 +213,7 @@ class DataGenerator(object):
             file_name = "data/negative_samples.csv"
             with open(file_name, 'a', newline='') as csvfile:
                 writer = csv.writer(csvfile)
-                writer.writerow([str(node_id) for node_id in task_id_set])
+                writer.writerow([str(node_id) for node_id in sorted(task_id_set)])
             logger.info(f"feasible: False \tsystem utilization: {system_utilization * 100 :.2f}%\ttask set: {task_id_set}") # 打印调度可行性结果
 
             # 走到这一步，说明 task_id_set 在 processors 上不可调度，判断 task_id_set 的子集是否可调度
@@ -225,5 +225,9 @@ class DataGenerator(object):
             # 当 task_id_set 的真子集都可调度且 task_id_set 不可调度时，说明 task_id_set 是一个会导致任务集不可调度的最小任务组合，任务集中存在这个组合即不可调度
             if flag: 
                 self.minimal_unschedulable_combinations.add(task_id_set)
+                file_name = "data/minimal_unschedulable_combinations.csv"
+                with open(file_name, 'a', newline='') as csvfile:
+                    writer = csv.writer(csvfile)
+                    writer.writerow([str(node_id) for node_id in sorted(task_id_set)])
 
             return False
