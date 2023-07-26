@@ -5,19 +5,27 @@ import csv
 import os
 from logger_config import logger
 
-np.random.seed(1231) 
-
 class DataGenerator(object):
-    def __init__(self):
+    def __init__(self, seed, data_path):
         self.processors = []        # 生成的处理器序列，按照 speed 降序排序
         self.tasks: np.ndarray      # tasks是一个 4 * number_of_tasks 的二维数组，row_index为task_id, 
         self.hyperedges: set = set()
         self.negative_samples: set = set()
         self.minimal_unschedulable_combinations: set = set()
+        self.data_path = data_path
+        np.random.seed(seed)
 
         # 如果data目录不存在，则创建它
-        if not os.path.exists("data"):
-            os.makedirs("data")
+        if not os.path.exists(data_path):
+            os.makedirs(data_path)
+
+        # 清除 data 目录下的 hyperedges.csv 和 negative_samples.csv
+        hyperedges_file = data_path + "/hyperedges.csv"
+        negative_samples_file = data_path + "/negative_samples.csv"
+        if os.path.exists(hyperedges_file):
+            os.remove(hyperedges_file)
+        if os.path.exists(negative_samples_file):
+            os.remove(negative_samples_file)
 
     def generate_platform(self, processors_number: int, speed_normalization: bool=False):
         """随机生成一组速度不同的异构处理器平台"""
@@ -34,7 +42,7 @@ class DataGenerator(object):
             platform_speed = [processor.speed for processor in self.processors]
         logger.info(f"platform speed: {platform_speed}")
 
-        self.save_platform("data/platform.csv")
+        self.save_platform(self.data_path + "/platform.csv")
 
         return self.processors
 
@@ -70,7 +78,7 @@ class DataGenerator(object):
             logger.info(f"task{i}: \t({e},\t{d},\t{T},\t{u :.2f})")
 
         # 保存tasks
-        self.save_tasks("data/task_quadruples.csv")
+        self.save_tasks(self.data_path + "/task_quadruples.csv")
 
         return quadruples
     
@@ -145,15 +153,6 @@ class DataGenerator(object):
         保存在self.hyperedges中
         """
 
-        # 清除 data 目录下的 hyperedges.csv 和 negative_samples.csv
-        hyperedges_file = "./data/hyperedges.csv"
-        negative_samples_file = "./data/negative_samples.csv"
-        if os.path.exists(hyperedges_file):
-            os.remove(hyperedges_file)
-        if os.path.exists(negative_samples_file):
-            os.remove(negative_samples_file)
-
-
         # 若超边最大尺寸没有设置或大于节点数量，则设为节点数量（任务数量）
         number_of_tasks = self.tasks.shape[0]
         if not max_hyperedge_size or max_hyperedge_size > number_of_tasks:
@@ -198,7 +197,7 @@ class DataGenerator(object):
             self.hyperedges.add(task_id_set)
 
             # 保存超边
-            file_name="data/hyperedges.csv"
+            file_name = self.data_path + "/hyperedges.csv"
             with open(file_name, 'a', newline='') as csvfile:
                 writer = csv.writer(csvfile)
                 writer.writerow([str(node_id) for node_id in sorted(task_id_set)])
@@ -210,7 +209,7 @@ class DataGenerator(object):
             self.negative_samples.add(task_id_set)
 
             # 保存负采样
-            file_name = "data/negative_samples.csv"
+            file_name = self.data_path + "/negative_samples.csv"
             with open(file_name, 'a', newline='') as csvfile:
                 writer = csv.writer(csvfile)
                 writer.writerow([str(node_id) for node_id in sorted(task_id_set)])
@@ -225,7 +224,7 @@ class DataGenerator(object):
             # 当 task_id_set 的真子集都可调度且 task_id_set 不可调度时，说明 task_id_set 是一个会导致任务集不可调度的最小任务组合，任务集中存在这个组合即不可调度
             if flag: 
                 self.minimal_unschedulable_combinations.add(task_id_set)
-                file_name = "data/minimal_unschedulable_combinations.csv"
+                file_name = self.data_path + "/minimal_unschedulable_combinations.csv"
                 with open(file_name, 'a', newline='') as csvfile:
                     writer = csv.writer(csvfile)
                     writer.writerow([str(node_id) for node_id in sorted(task_id_set)])
