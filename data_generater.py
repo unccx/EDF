@@ -4,6 +4,8 @@ import itertools
 import csv
 import os
 from logger_config import logger
+from tqdm import tqdm
+import math
 
 class DataGenerator(object):
     def __init__(self, seed, data_path):
@@ -161,7 +163,8 @@ class DataGenerator(object):
         # 从生成的任务节点中挑选 max_hyperedge_size 个节点作为任务集，去充分地搜索可能存在的超边
         task_id_set = frozenset(range(number_of_tasks))
         combin = itertools.combinations(task_id_set, max_hyperedge_size)
-        for subset in combin:
+        num_combins = math.comb(number_of_tasks, max_hyperedge_size)
+        for subset in tqdm(combin, desc="search hyperedge", total=num_combins):
             self.search_hyperedge(frozenset(subset))
 
         return self.hyperedges

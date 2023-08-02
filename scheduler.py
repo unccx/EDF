@@ -161,8 +161,7 @@ class Scheduler(object):
         if truncated_lcm < 0 or truncated_lcm > self.lcm_period:
             truncated_lcm = self.lcm_period
 
-        with tqdm(total=truncated_lcm) as pbar:
-            pbar.set_description('Simulation Processing:')
+        with tqdm(total=truncated_lcm, desc="Simulation Processing:", leave=False) as pbar:
             while self.current_timepoint <= truncated_lcm:
                 # print(f"Simulation progress: [{self.current_timepoint} / {truncated_lcm} = {self.current_timepoint / self.truncated_lcm * 100 :.2f}%]:", end='', flush=True)
                 # print("\r", end='', flush=True)
