@@ -6,6 +6,7 @@ import os
 from logger_config import logger
 from tqdm import tqdm
 import math
+import random
 
 class DataGenerator(object):
     def __init__(self, seed, data_path):
@@ -150,7 +151,7 @@ class DataGenerator(object):
 
         return feasible
 
-    def generate_hyperedge(self, max_hyperedge_size=None):
+    def generate_hyperedge(self, max_hyperedge_size=None, num_of_hyperedge=None):
         """为节点集合充分的生成超边
         保存在self.hyperedges中
         """
@@ -160,12 +161,12 @@ class DataGenerator(object):
         if not max_hyperedge_size or max_hyperedge_size > number_of_tasks:
             max_hyperedge_size = number_of_tasks 
 
-        # 从生成的任务节点中挑选 max_hyperedge_size 个节点作为任务集，去充分地搜索可能存在的超边
-        task_id_set = frozenset(range(number_of_tasks))
-        combin = itertools.combinations(task_id_set, max_hyperedge_size)
-        num_combins = math.comb(number_of_tasks, max_hyperedge_size)
-        for subset in tqdm(combin, desc="search hyperedge", total=num_combins):
-            self.search_hyperedge(frozenset(subset))
+        if not num_of_hyperedge:
+            num_of_hyperedge = number_of_tasks * max_hyperedge_size
+
+        for i in tqdm(range(num_of_hyperedge), desc="search hyperedge", total=num_of_hyperedge):
+            task_id_set = random.sample(range(number_of_tasks), max_hyperedge_size)
+            self.search_hyperedge(frozenset(task_id_set))
 
         return self.hyperedges
 
