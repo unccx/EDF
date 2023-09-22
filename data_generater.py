@@ -4,12 +4,13 @@ import itertools
 import csv
 import os
 from logger_config import logger
+from pathlib import Path
 from tqdm import tqdm
 import math
 import random
 
 class DataGenerator(object):
-    def __init__(self, seed, data_path):
+    def __init__(self, seed, data_path:Path):
         self.processors = []        # 生成的处理器序列，按照 speed 降序排序
         self.tasks: np.ndarray      # tasks是一个 4 * number_of_tasks 的二维数组，row_index为task_id, 
         self.hyperedges: set = set()
@@ -23,8 +24,8 @@ class DataGenerator(object):
             os.makedirs(data_path)
 
         # 清除 data 目录下的 hyperedges.csv 和 negative_samples.csv
-        hyperedges_file = data_path + "/hyperedges.csv"
-        negative_samples_file = data_path + "/negative_samples.csv"
+        hyperedges_file = data_path / "hyperedges.csv"
+        negative_samples_file = data_path / "negative_samples.csv"
         if os.path.exists(hyperedges_file):
             os.remove(hyperedges_file)
         if os.path.exists(negative_samples_file):
@@ -45,7 +46,7 @@ class DataGenerator(object):
             platform_speed = [processor.speed for processor in self.processors]
         logger.info(f"platform speed: {platform_speed}")
 
-        self.save_platform(self.data_path + "/platform.csv")
+        self.save_platform(self.data_path / "platform.csv")
 
         return self.processors
 
@@ -81,27 +82,27 @@ class DataGenerator(object):
             logger.info(f"task{i}: \t({e},\t{d},\t{T},\t{u :.2f})")
 
         # 保存tasks
-        self.save_tasks(self.data_path + "/task_quadruples.csv")
+        self.save_tasks(self.data_path / "task_quadruples.csv")
 
         return quadruples
     
     # 保存数据
-    def save_tasks(self, file_name="data/task_quadruples.csv"):
+    def save_tasks(self, file_name:Path=Path("data/task_quadruples.csv")):
         np.savetxt(file_name, self.tasks, delimiter=",")
 
-    def save_platform(self, file_name="data/platform.csv"):
+    def save_platform(self, file_name:Path=Path("data/platform.csv")):
         with open(file_name, 'w', newline='') as csvfile:
             writer = csv.writer(csvfile)
             for processor in self.processors:
                 writer.writerow([processor.id, processor.speed])
 
-    def save_hyperedges(self, file_name="data/hyperedges.csv"):
+    def save_hyperedges(self, file_name:Path=Path("data/hyperedges.csv")):
         with open(file_name, 'w', newline='') as csvfile:
             writer = csv.writer(csvfile)
             for hyperedge in self.hyperedges:
                 writer.writerow([str(node_id) for node_id in hyperedge])
 
-    def save_negative_samples(self, file_name="data/negative_samples.csv"):
+    def save_negative_samples(self, file_name:Path=Path("data/negative_samples.csv")):
         with open(file_name, 'w', newline='') as csvfile:
             writer = csv.writer(csvfile)
             for negative_sample in self.negative_samples:
@@ -201,7 +202,7 @@ class DataGenerator(object):
             self.hyperedges.add(task_id_set)
 
             # 保存超边
-            file_name = self.data_path + "/hyperedges.csv"
+            file_name = self.data_path / "hyperedges.csv"
             with open(file_name, 'a', newline='') as csvfile:
                 writer = csv.writer(csvfile)
                 writer.writerow([str(node_id) for node_id in sorted(task_id_set)])
@@ -213,7 +214,7 @@ class DataGenerator(object):
             self.negative_samples.add(task_id_set)
 
             # 保存负采样
-            file_name = self.data_path + "/negative_samples.csv"
+            file_name = self.data_path / "negative_samples.csv"
             with open(file_name, 'a', newline='') as csvfile:
                 writer = csv.writer(csvfile)
                 writer.writerow([str(node_id) for node_id in sorted(task_id_set)])
@@ -228,7 +229,7 @@ class DataGenerator(object):
             # 当 task_id_set 的真子集都可调度且 task_id_set 不可调度时，说明 task_id_set 是一个会导致任务集不可调度的最小任务组合，任务集中存在这个组合即不可调度
             if flag: 
                 self.minimal_unschedulable_combinations.add(task_id_set)
-                file_name = self.data_path + "/minimal_unschedulable_combinations.csv"
+                file_name = self.data_path / "minimal_unschedulable_combinations.csv"
                 with open(file_name, 'a', newline='') as csvfile:
                     writer = csv.writer(csvfile)
                     writer.writerow([str(node_id) for node_id in sorted(task_id_set)])
