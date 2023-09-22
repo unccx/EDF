@@ -9,8 +9,8 @@ logger = logging.getLogger(__name__)
 logger.setLevel(log_level) # logger记录的日志级别，大于等于这一级别的日志才会被记录
 
 # 创建一个将日志信息输出到文件的 FileHandler 对象
-# file_handler = logging.FileHandler("./record.log", mode="w")
-file_handler = ConcurrentRotatingFileHandler("./record.log", mode='a', maxBytes=1048576, backupCount=5, encoding='utf-8')
+os.makedirs("./log", exist_ok=True)
+file_handler = ConcurrentRotatingFileHandler("./log/record.log", mode='a', maxBytes=1048576, backupCount=5, encoding='utf-8')
 file_handler.setLevel(log_level) # handler输出的日志级别，大于等于这一级别的日志才会输出到文件中
 
 # 创建一个将日志信息输出到控制台的 StreamHandler 对象

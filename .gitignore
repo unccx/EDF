@@ -2,5 +2,6 @@
 __pycache__
 *.png
 *.log*
+log
 *.csv
 .__*.lock
