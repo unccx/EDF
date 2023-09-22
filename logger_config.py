@@ -5,7 +5,8 @@ import os
 log_level = logging.INFO
 
 # 创建 Logger 对象
-logger = logging.getLogger(__name__)
+pid = os.getpid()
+logger = logging.getLogger(str(pid))
 logger.setLevel(log_level) # logger记录的日志级别，大于等于这一级别的日志才会被记录
 
 # 创建一个将日志信息输出到文件的 FileHandler 对象
