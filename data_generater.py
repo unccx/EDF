@@ -50,7 +50,7 @@ class DataGenerator(object):
 
         return self.processors
 
-    def generate_tasks(self, number_of_tasks):
+    def generate_tasks(self, number_of_tasks:int, implicit_deadline:bool):
         if not self.processors:
             logger.error(f"platform not generated")
 
@@ -61,10 +61,13 @@ class DataGenerator(object):
         # 随机生成一列deadline
         deadline_col = np.random.randint(1, 100, size=number_of_tasks).reshape(-1, 1)
 
-        # # 随机生成一列period，需要 period >= deadline
-        # period_col = np.random.randint(1, 100, size=(number_of_tasks, 1)) + deadline_col
-        # 随机生成一列period，需要 period == deadline
-        period_col = np.random.randint(0, 1, size=(number_of_tasks, 1)) + deadline_col
+        if implicit_deadline:
+            # 随机生成一列period，需要 period == deadline
+            period_col = np.random.randint(0, 1, size=(number_of_tasks, 1)) + deadline_col
+        else:
+            # 随机生成一列period，需要 period >= deadline
+            period_col = np.random.randint(1, 100, size=(number_of_tasks, 1)) + deadline_col
+
 
         # 根据周期和归一化利用率计算出在最慢处理器上测量的执行时间。
         fastest_processor_speed = self.processors[0].speed # self.processors按照 speed 降序排序
@@ -176,7 +179,7 @@ class DataGenerator(object):
         """从一组任务节点中递归地找出所有的超边"""
 
         # 判断 task_id_set 是否为空
-        if not task_id_set:
+        if len(task_id_set) <= 1:
             return True
         
         # 判断任务集是否已经判定过可调度性，如果已经搜索过则不再往下搜索
