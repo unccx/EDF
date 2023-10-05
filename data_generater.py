@@ -49,6 +49,17 @@ class DataGenerator(object):
         self.save_platform(self.data_path / "platform.csv")
 
         return self.processors
+    
+    def load_platform(self, file_path: Path):
+        with open(file_path / "platform.csv", "r") as file:
+            reader = csv.reader(file)
+            for processor_id, processor_speed in reader:
+                processor = sc.Processor(id=processor_id, speed=float(processor_speed))
+                self.processors.append(processor)
+
+        self.save_platform(self.data_path / "platform.csv")
+        
+        return self.processors
 
     def generate_tasks(self, number_of_tasks:int, implicit_deadline:bool):
         if not self.processors:

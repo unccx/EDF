@@ -49,9 +49,9 @@ class Processor(object):
         history:        在此处理器上的运行历史
                         元素为(task.id, task.instance_id, current_timepoint, running_time)的四元组
     '''
-    def __init__(self, id, speed, enable_history=True):
+    def __init__(self, id, speed:float, enable_history:bool=True):
         self.id = id                            # 处理器id
-        self.speed = speed                      # 性能
+        self.speed:float = speed                      # 性能
         self.end_timepoint = None               # 处理器所分配任务的执行结束时刻
         self.current_task = None                # 处理器上当前所分配任务
         self.history = []                       # 在此处理器上的运行历史
